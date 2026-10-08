@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+project_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
+# The arcgis-rest plugin: every skill plus the pi extension that calls ArcGIS as the signed-in user.
+plugin_dir="$project_dir/arcgis-rest"
+extension_dir="$plugin_dir/dev.pi/extensions/arcgis"
+# Cached logins stay in this project, one profile per portal/client pair (see arcgis.ts).
+export ARCGIS_SESSION_DIR="$project_dir/.arcgis"
+pi_bin="${PI_BIN:-pi}"
+# Generated files go to one folder of the project; arcgis.ts applies the same rule. Never a dot
+# folder or one of the project's own: startup deletes old files there.
+artifacts_dir="${ARCPI_ARTIFACTS_DIR:-artifacts}"
+[[ "$artifacts_dir" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && ! "$artifacts_dir" =~ ^(arcgis-rest|mappi|test|tasks|video)$ ]] || { echo "ARCPI_ARTIFACTS_DIR must be one folder name in the project, not a dot folder or arcgis-rest, mappi, test, tasks or video (got '$artifacts_dir')." >&2; exit 1; }
+export ARCPI_ARTIFACTS_DIR="$artifacts_dir"
+# Startup deletes artifacts older than this many whole days; at most five digits, so the
+# hours below cannot overflow Bash arithmetic and wrap to a shorter age.
+artifacts_max_age_days="${ARCPI_ARTIFACTS_MAX_AGE_DAYS:-1}"
+[[ "$artifacts_max_age_days" =~ ^[1-9][0-9]{0,4}$ ]] || { echo "ARCPI_ARTIFACTS_MAX_AGE_DAYS must be a whole number of days from 1 to 99999 (got '$artifacts_max_age_days')." >&2; exit 1; }
+session_command=''
+case "${1:-}" in login | logout | status) session_command="$1" ;; esac
+if [[ -n "$session_command" ]]; then
+  : "${ARCGIS_PORTAL_URL:?Export ARCGIS_PORTAL_URL before running arcpi $session_command}"
+  : "${ARCGIS_CLIENT_ID:?Export ARCGIS_CLIENT_ID before running arcpi $session_command}"
+else
+  pi_bin="$(command -v "$pi_bin")" || { echo 'pi not found; install pi or set PI_BIN.' >&2; exit 1; }
+  [[ "$pi_bin" = /* ]] || pi_bin="$PWD/$pi_bin"
+fi
+
+umask 077
+cd -- "$project_dir"
+artifacts_root="$project_dir/$artifacts_dir"
+# Cleanup deletes only in a folder arcpi created, marked by this file; an existing default
+# artifacts/ (a container mount) is adopted. Never follow an artifacts symlink, nor symlinks inside it.
+marker="$artifacts_root/.arcpi-artifacts"
+if [[ ! -L "$artifacts_root" ]]; then
+  if [[ -d "$artifacts_root" && "$artifacts_dir" != artifacts && ! -e "$marker" && ! -L "$marker" ]]; then
+    echo "$artifacts_dir/ exists but arcpi did not create it, so startup will not delete files in it. Choose another ARCPI_ARTIFACTS_DIR, or mark the folder as arcpi's: touch '$marker'" >&2
+    exit 1
+  fi
+  mkdir -p -- "$artifacts_root"
+  [[ -e "$marker" || -L "$marker" ]] || : > "$marker"
+  pruned="$(find -P "$artifacts_root" -type f ! -path "$marker" ! -newermt "$((artifacts_max_age_days * 24)) hours ago" -delete -print | wc -l)"
+  (( pruned == 0 )) || echo "Deleted $((pruned)) file(s) in $artifacts_dir/ older than $artifacts_max_age_days day(s)." >&2
+fi
+# Sign-in does not need pi: Node runs the TypeScript directly.
+if [[ -n "$session_command" ]]; then
+  exec node "$extension_dir/arcgis.ts" "$session_command"
+fi
+
+# Skills and tool descriptions say artifacts/; another folder is announced once.
+artifacts_prompt=()
+[[ "$artifacts_dir" = artifacts ]] || artifacts_prompt=(--append-system-prompt "Generated files go in $artifacts_dir/: read every artifacts/ in the skills and tool descriptions as $artifacts_dir/.")
+exec "$pi_bin" --append-system-prompt "$project_dir/.pi/APPEND_SYSTEM.md" ${artifacts_prompt[@]+"${artifacts_prompt[@]}"} \
+  --extension "$extension_dir/index.ts" \
+  --skill "$plugin_dir/skills" "$@"

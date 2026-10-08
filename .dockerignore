@@ -1,0 +1,4 @@
+# Project files are mounted at runtime; keep credentials and artifacts out of builds.
+**
+!Dockerfile
+!.dockerignore

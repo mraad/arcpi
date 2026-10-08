@@ -1,0 +1,59 @@
+# arcpi with the live map (mappi, in this checkout), each in its own container.
+#   ./arcpi login                                      # one shared ArcGIS login on the host
+#   docker compose -f compose.map.yaml up --build -d --wait  # starts both services
+#   docker compose -f compose.map.yaml attach arcpi      # interactive Pi console
+#   docker compose -f compose.map.yaml down               # stops the map
+# Map page: http://127.0.0.1:8787/ (MAPPI_PORT to change the host port).
+#
+# Both run the arcpi image. arcpi shares the map container's network, so the
+# plugin's mcp.json entry (http://127.0.0.1:8787/mcp) reaches it unchanged, and
+# both see the checkout at /work/arcpi, so the absolute paths arcpi reports
+# under artifacts/ are the ones mappi's /artifacts serves.
+# Sign in on the host (./arcpi login): the browser callback cannot reach a container.
+# Mappi inherits that session; there is no second browser sign-in.
+services:
+  mappi:
+    build: .
+    environment:
+      HOST: 0.0.0.0
+      ARCGIS_PORTAL_URL: ${ARCGIS_PORTAL_URL:-}
+      ARCGIS_CLIENT_ID: ${ARCGIS_CLIENT_ID:-}
+      ARCGIS_TRUSTED_TOKEN_HOSTS: ${ARCGIS_TRUSTED_TOKEN_HOSTS:-}
+      ARCPI_ARTIFACTS_DIR: ${ARCPI_ARTIFACTS_DIR:-artifacts}
+    ports:
+      - "127.0.0.1:${MAPPI_PORT:-8787}:8787"
+    # The checkout stays read-only; only shared session refresh needs writes.
+    volumes:
+      - .:/work/arcpi:ro
+      - ./.arcgis:/work/arcpi/.arcgis
+    command: ["node", "mappi/server.ts"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/health').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      start_interval: 1s
+
+  arcpi:
+    build: .
+    network_mode: service:mappi
+    depends_on:
+      mappi:
+        condition: service_healthy
+    stdin_open: true
+    tty: true
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ARCGIS_PORTAL_URL: ${ARCGIS_PORTAL_URL:-}
+      ARCGIS_CLIENT_ID: ${ARCGIS_CLIENT_ID:-}
+      ARCGIS_TRUSTED_TOKEN_HOSTS: ${ARCGIS_TRUSTED_TOKEN_HOSTS:-}
+      ARCPI_ARTIFACTS_DIR: ${ARCPI_ARTIFACTS_DIR:-artifacts}
+      ARCPI_ARTIFACTS_MAX_AGE_DAYS: ${ARCPI_ARTIFACTS_MAX_AGE_DAYS:-1}
+    # Your checkout (sessions, artifacts, .pi), your pi settings, the data.
+    volumes:
+      - .:/work/arcpi
+      - ${HOME}/.pi/agent:/home/node/.pi/agent
+      # pi's downloaded tools are per platform: keep Linux ones out of the host's agent dir.
+      - /home/node/.pi/agent/bin
+      - ${GIS_DATA_DIR:-${HOME}/Documents/ArcGIS/Projects}:${GIS_DATA_DIR:-${HOME}/Documents/ArcGIS/Projects}:ro
+    command: ["./arcpi"]

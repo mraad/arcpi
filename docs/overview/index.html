@@ -1,0 +1,326 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>arcpi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* Layout: one reading column (~68ch) for text; figures break out to a wider column so screenshots stay legible. */
+  :root {
+    --bg: #f6f7f9;
+    --surface: #ffffff;
+    --fg: #1c2330;
+    --muted: #586174;
+    --rule: #dde1e8;
+    --accent: #1f6fd1;      /* drive-time blue from the map */
+    --mark: #c99a00;        /* hatched-intersection yellow, darkened for text on light */
+    --code-bg: #eceff4;
+    --display: "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif;
+    --body: "Source Sans 3", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #12161d; --surface: #1a1f28; --fg: #e3e7ee; --muted: #9aa3b4; --rule: #2b3240;
+      --accent: #6aa8f5; --mark: #f0c419; --code-bg: #20262f; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #12161d; --surface: #1a1f28; --fg: #e3e7ee; --muted: #9aa3b4; --rule: #2b3240;
+    --accent: #6aa8f5; --mark: #f0c419; --code-bg: #20262f; color-scheme: dark;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font: 18px/1.6 var(--body);
+    padding-inline: 16px;
+    padding-block: 0 64px;
+  }
+  .column { max-width: 68ch; margin-inline: auto; }
+  .wide { max-width: 1180px; margin-inline: auto; }
+
+  header { padding-block: 56px 28px; }
+  .eyebrow {
+    font: 600 0.8rem/1 var(--display);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 12px;
+  }
+  h1, h2, h3 { font-family: var(--display); text-wrap: balance; line-height: 1.15; margin: 0; }
+  h1 { font-size: clamp(2.6rem, 6vw, 3.6rem); font-weight: 600; }
+  h2 { font-size: 1.9rem; font-weight: 600; margin-top: 56px; }
+  h3 { font-size: 1.3rem; font-weight: 600; margin-top: 28px; }
+  .lede { font-size: 1.25rem; color: var(--fg); margin: 16px 0 0; }
+  p { margin: 14px 0 0; }
+  a { color: var(--accent); }
+  strong { font-weight: 600; }
+  code {
+    font: 0.88em var(--mono);
+    background: var(--code-bg);
+    padding: 0.08em 0.35em;
+    border-radius: 4px;
+  }
+
+  figure { margin: 28px auto 0; }
+  figure img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 6px;
+    border: 1px solid var(--rule);
+    background: #0f1115;
+  }
+  figcaption {
+    max-width: 68ch;
+    margin: 10px auto 0;
+    font-size: 0.95rem;
+    color: var(--muted);
+  }
+  .pair {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr));
+    gap: 20px;
+  }
+  .pair figure { margin: 0; }
+  .pair figcaption { margin-inline: 0; }
+
+  ul, ol { padding-left: 1.3em; margin: 14px 0 0; }
+  li + li { margin-top: 8px; }
+
+  .steps { list-style: none; padding: 0; counter-reset: step; }
+  .steps > li { counter-increment: step; margin-top: 40px; }
+  .steps > li > h3::before {
+    content: "Step " counter(step) " · ";
+    color: var(--accent);
+  }
+
+  pre {
+    font: 0.9rem/1.55 var(--mono);
+    background: var(--code-bg);
+    padding: 14px 16px;
+    border-radius: 6px;
+    overflow-x: auto;
+    margin: 16px 0 0;
+  }
+  .note {
+    margin-top: 20px;
+    padding: 14px 18px;
+    border-left: 3px solid var(--mark);
+    background: var(--surface);
+    border-radius: 0 6px 6px 0;
+  }
+  dl { margin: 16px 0 0; display: grid; gap: 14px; }
+  dt { font-weight: 600; }
+  dd { margin: 2px 0 0; color: var(--fg); }
+  footer { margin-top: 64px; padding-top: 18px; border-top: 1px solid var(--rule); color: var(--muted); font-size: 0.95rem; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+
+<header class="column">
+  <p class="eyebrow">A GIS assistant you talk to in a terminal</p>
+  <h1>arcpi</h1>
+  <p class="lede">
+    arcpi lets you ask questions about maps and geographic data in plain English.
+    An AI agent answers by calling Esri's ArcGIS services directly, and draws the
+    result on a live map in your browser. The conversation stays in the terminal;
+    the map stays on the map.
+  </p>
+</header>
+
+<figure class="wide">
+  <img src="images/side-by-side.jpg" width="2560" height="800"
+       alt="Left: a terminal showing the agent's final answer, a table of the two landmarks and the map layers it drew. Right: a dark map of Manhattan with a blue 10-minute drive-time area around the Empire State Building, a red one around the World Trade Center, and two small yellow hatched areas where they overlap.">
+  <figcaption>
+    One recorded run. Left: the conversation in the terminal. Right: the live map.
+    The question was to find the Empire State Building and the World Trade Center,
+    draw the area you can reach by car from each within 10 minutes, and highlight
+    where those two areas overlap in hatched yellow.
+  </figcaption>
+</figure>
+
+<main class="column">
+
+  <h2>The idea in one paragraph</h2>
+  <p>
+    ArcGIS already has a large, well-documented web API for search, maps, addresses,
+    routing, demographics and more. Instead of wrapping that API in yet another layer
+    for AI tools, arcpi teaches an agent to use it directly: short written guides
+    (called <em>skills</em>) explain which endpoint to call and how, and the agent
+    writes a small program that makes the calls, combines the results and returns
+    only the answer. Large data, like the outline of a city district, never passes
+    through the conversation; it is saved to a file and drawn on the map.
+  </p>
+
+  <h2>The three pieces</h2>
+
+  <h3>pi, a minimal agent</h3>
+  <p>
+    <a href="https://pi.dev/docs/latest">pi</a> is a small, terminal-based AI agent
+    that can be extended with plain text guides and a few lines of code. arcpi adds
+    four guides (ArcGIS web services, standalone maps, local files, and the live map),
+    one extension that talks to ArcGIS as the signed-in user, and a launcher script.
+    There is no build step and nothing to install beyond pi and Node.js.
+  </p>
+
+  <h3>Code mode: one script instead of many round trips</h3>
+  <p>
+    Most AI agents call one tool, wait for the answer, think, and call the next.
+    In code mode the agent writes one short JavaScript program that runs all the
+    steps at once: look up both addresses, compute both drive-time areas, find the
+    overlap, and draw the result. The program runs in a locked-down sandbox with no
+    network access of its own; it can only call the tools arcpi provides. In the
+    run above, that one program did all of the ArcGIS work in 5.3 seconds.
+  </p>
+
+  <h3>The map is separate from the chat</h3>
+  <p>
+    The terminal is for asking and explaining. A browser page, served by a small
+    companion program called <strong>mappi</strong>, is for looking. The agent sends
+    layers to the map and sends counts, names and explanations to the chat. Each
+    side does what it is good at, and the chat never fills up with coordinates.
+  </p>
+
+  <h2>What happens when you ask a question</h2>
+  <p>These are the actual steps from the recorded run shown at the top of the page.</p>
+
+  <ol class="steps">
+    <li>
+      <h3>You ask in plain English</h3>
+      <p>
+        The question is typed into pi in the terminal. You do not name any service,
+        endpoint or parameter.
+      </p>
+      <figure>
+        <img src="images/question.jpg" width="1280" height="800" loading="lazy"
+             alt="The pi terminal with the question being typed: locate the Empire State Building, then the World Trade Center, create a 10-minute drive-time polygon around each, and show their intersection in hashed yellow.">
+        <figcaption>The question, typed into a fresh pi session running in Docker.</figcaption>
+      </figure>
+    </li>
+
+    <li>
+      <h3>The agent reads the relevant guides and makes a plan</h3>
+      <p>
+        It reads the ArcGIS guide, then the three references this question needs
+        (addresses, routing and geometry) in a single step, and writes down a
+        five-step plan.
+      </p>
+      <figure>
+        <img src="images/plan.jpg" width="1280" height="800" loading="lazy"
+             alt="The terminal showing the agent reading routing, geocoding and geometry references in one step, then listing a plan: get helper services, geocode both landmarks, solve both drive-time areas in one call, intersect them, and draw everything.">
+        <figcaption>Three reference guides read at once, followed by the plan.</figcaption>
+      </figure>
+    </li>
+
+    <li>
+      <h3>It writes one program that does the work</h3>
+      <p>
+        The program finds both landmarks, asks ArcGIS for both 10-minute driving
+        areas in a single request, asks for the overlap of the two, and sends drawing
+        instructions to the map. It also checks that every layer actually appeared on
+        the map before reporting success.
+      </p>
+      <figure>
+        <img src="images/script.jpg" width="1280" height="800" loading="lazy"
+             alt="The terminal showing the start of the agent's code-mode program, with a helper that calls ArcGIS and a helper that sends code to the map.">
+        <figcaption>The start of the program the agent wrote and ran.</figcaption>
+      </figure>
+    </li>
+
+    <li>
+      <h3>The map shows the result; the chat explains it</h3>
+      <div class="pair">
+        <figure>
+          <img src="images/map.jpg" width="1280" height="800" loading="lazy"
+               alt="Map of lower and midtown Manhattan: a blue area around the Empire State Building, a red area around the World Trade Center reaching into Brooklyn and Jersey City, two small yellow hatched overlap areas, and a legend naming each layer.">
+          <figcaption>
+            Blue: 10 minutes by car from the Empire State Building. Red: 10 minutes
+            from the World Trade Center. Yellow hatching: reachable from both.
+          </figcaption>
+        </figure>
+        <figure>
+          <img src="images/answer.jpg" width="1280" height="800" loading="lazy"
+               alt="The terminal showing the agent's answer: a table of the two landmarks with coordinates and match scores, a table of map layers with the number of features drawn for each, and a short statement that the two areas do intersect.">
+          <figcaption>
+            The answer in the chat: where each landmark is, which layers were drawn
+            (each one confirmed), and that the two areas do overlap.
+          </figcaption>
+        </figure>
+      </div>
+      <p>
+        From typing the question to the final answer took about three minutes, most of
+        it the model thinking. The ArcGIS calls themselves took seconds.
+      </p>
+    </li>
+  </ol>
+
+  <h2>Credentials stay out of the conversation</h2>
+  <dl>
+    <dt>You sign in once</dt>
+    <dd>
+      <code>./arcpi login</code> opens your browser for the standard ArcGIS sign-in.
+      The agent and the map both use that login; neither ever sees the password or
+      the token.
+    </dd>
+    <dt>The token only goes to ArcGIS</dt>
+    <dd>
+      The token is attached only to requests for hosts your ArcGIS organization
+      trusts. It is never shown to the AI model, never written into a script, and is
+      blanked out of any response that happens to contain it.
+    </dd>
+    <dt>Shapes stay on disk</dt>
+    <dd>
+      Lines and polygons are saved as files and handed around by reference. The model
+      sees "a polygon with 42 points in this file", not the points themselves.
+    </dd>
+    <dt>Some services cost credits</dt>
+    <dd>
+      Routing, drive-time areas, batch address lookup and demographics are billed to
+      your ArcGIS organization. The guides tell the agent to confirm before running
+      many of them.
+    </dd>
+  </dl>
+
+  <h2>Running it locked down</h2>
+  <p>
+    arcpi is designed to run inside <a href="https://github.com/NVIDIA/OpenShell">OpenShell</a>,
+    a sandbox where nothing is allowed unless a policy says so: no network access
+    except to the AI model and ArcGIS, no access to your files except what is copied
+    in, and real credentials held outside the sandbox and swapped in only for approved
+    hosts.
+  </p>
+  <p class="note">
+    The OpenShell setup is a written recommendation and has not been run yet. The
+    terminal and map shown on this page ran in ordinary Docker containers on a laptop.
+  </p>
+
+  <h2>Trying it</h2>
+  <p>
+    You need pi, Node.js and an ArcGIS organization account with an OAuth app. Then,
+    from a copy of the project:
+  </p>
+  <pre>export ARCGIS_PORTAL_URL=https://your-org.maps.arcgis.com
+export ARCGIS_CLIENT_ID=your-oauth-client-id
+./arcpi login                                       # once, in your browser
+docker compose -f compose.map.yaml up --build -d --wait
+docker compose -f compose.map.yaml attach arcpi     # then ask a question</pre>
+  <p>
+    Open <code>http://127.0.0.1:8787/</code> in your browser to see the map. Questions
+    about your own local GeoJSON or CSV files work without signing in at all.
+  </p>
+
+  <h2>What it does not do</h2>
+  <ul>
+    <li>It does not edit ArcGIS Pro projects or read file geodatabases directly; export the data first.</li>
+    <li>It does not publish or share anything unless you explicitly ask.</li>
+    <li>It does not cover geoprocessing, publishing, knowledge graphs or utility networks yet.</li>
+    <li>Its speed figures come from single recorded runs, not benchmarks.</li>
+  </ul>
+
+  <footer>
+    arcpi is licensed under Apache-2.0. The screenshots are frames from a
+    recorded demo run; the signed-in username has been removed from them.
+  </footer>
+</main>
+
+</body></html>

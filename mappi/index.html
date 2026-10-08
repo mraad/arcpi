@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>mappi</title>
+<script type="module" src="https://js.arcgis.com/5.1.4/"></script>
+<style>
+  :root{ --bg:#f6f7f9; --fg:#1d2430; --muted:#5b6675; --line:#d8dde4; --accent:#0b6bcb; }
+  @media (prefers-color-scheme: dark){ :root{ --bg:#14181e; --fg:#e6e9ee; --muted:#9aa4b2; --line:#2a313b; --accent:#57a6f0; } }
+  html,body{ margin:0; height:100%; background:var(--bg); color:var(--fg); font:14px/1.4 system-ui, sans-serif; }
+  body{ display:flex; flex-direction:column; }
+  header{ display:flex; align-items:center; gap:12px; padding:6px 12px; border-bottom:1px solid var(--line); }
+  header strong{ font-weight:600; }
+  #status{ color:var(--muted); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #status.err{ color:#d64545; }
+  #user{ color:var(--muted); }
+  arcgis-map{ display:block; flex:1; }
+</style>
+</head>
+<body>
+<header>
+  <strong>mappi</strong>
+  <span id="status">loading map…</span>
+  <span id="user"></span>
+</header>
+<arcgis-map id="map" basemap="dark-gray-vector" center="-98,39" zoom="4" aria-label="Map">
+  <arcgis-zoom slot="top-left"></arcgis-zoom>
+</arcgis-map>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const mapEl = $("map");
+const setStatus = (text, err = false) => { $("status").textContent = text; $("status").classList.toggle("err", err); };
+
+await customElements.whenDefined("arcgis-map");
+await mapEl.viewOnReady();
+const view = mapEl.view;
+const [esriConfig, idm] = await $arcgis.import([
+  "@arcgis/core/config.js",
+  "@arcgis/core/identity/IdentityManager.js",
+]);
+
+// --- Inherit arcpi's session over SSE; no browser OAuth or refresh token.
+let user = null;
+let auth = { token: null, expires: 0, hosts: [], suffixes: [] };
+const tokens = new Set();
+const signInRequired = (url) => new Error(`sign-in required for ${url}: run ./arcpi login (or /arcgis-login), then re-send`);
+function applyAuth(next){
+  idm.destroyCredentials();
+  auth = next;
+  user = next.token ? next.username : null;
+  $("user").textContent = user ?? (next.portalUrl ? "Sign in with arcpi login" : "");
+  if(next.portalUrl) esriConfig.portalUrl = next.portalUrl;
+  if(next.token){
+    tokens.add(next.token);
+    idm.registerToken({ server: `${next.portalUrl}/sharing/rest`, token: next.token,
+      userId: next.username, expires: next.expires, ssl: next.portalUrl.startsWith("https:") });
+  }
+}
+// Only the application's scoped interceptor attaches tokens. The SDK must not
+// start another login or exchange a token with an unapproved server.
+esriConfig.request.useIdentity = false;
+idm.getCredential = (url) => {
+  const credential = idm.findCredential(url);
+  return credential && credential.token === auth.token && auth.expires > Date.now()
+    ? Promise.resolve(credential) : Promise.reject(signInRequired(url));
+};
+esriConfig.request.interceptors.unshift({
+  urls: /./,
+  before({ url: raw, requestOptions }){
+    const url = new URL(raw, location.origin);
+    const trusted = (url.protocol === "https:" || (url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)))
+      && !auth.refusedHosts?.includes(url.hostname)
+      && (auth.hosts?.includes(url.hostname) || auth.suffixes?.some(s => url.hostname === s || url.hostname.endsWith(`.${s}`)));
+    let path = url.pathname;
+    try { path = decodeURIComponent(path); } catch(_){}
+    if(/\/(oauth2|tokens|generateToken)(?=[/;]|$)/i.test(path)) throw new Error("Token endpoints are managed by arcpi login");
+    if(url.searchParams.has("token") || requestOptions.query?.token) throw new Error("Never pass a token in map code");
+    if(!trusted || !auth.token) return;
+    if(auth.expires <= Date.now()) throw signInRequired(raw);
+    requestOptions.query = { ...requestOptions.query, token: auth.token };
+  },
+  error(error){
+    if([498, 499].includes(error.details?.httpStatus) || [498, 499].includes(error.details?.raw?.code)) {
+      throw signInRequired(error.details?.url ?? "secured content");
+    }
+  },
+});
+
+// --- The api generated code drives (run_map_code) ---
+const codeLayers = new globalThis.Map();
+const api = {
+  view, map: mapEl.map,
+  import: (paths) => $arcgis.import(paths),
+  layers: codeLayers,
+  get user(){ return user; },
+  addLayer(layer, { name, zoom } = {}){
+    if(name && codeLayers.has(name)) mapEl.map.remove(codeLayers.get(name));
+    mapEl.map.add(layer);
+    if(name) codeLayers.set(name, layer);
+    // Auto popup: the SDK's own field table, once the layer knows its fields.
+    layer.when?.(() => {
+      if(!layer.popupTemplate && layer.createPopupTemplate) layer.popupTemplate = layer.createPopupTemplate();
+    }).catch?.(() => {});
+    this.legend();
+    if(zoom) this.zoomTo(layer);
+    return layer;
+  },
+  // A saved .parquet file (absolute path, served by /artifacts) as a ParquetLayer. Covers two
+  // SDK 5.1.4 gaps: GeoParquet without a crs is CRS84 by spec (the SDK leaves geometry
+  // null), and MultiLineString is read as point (geometry null again, so retry as polyline).
+  async parquetLayer(path, { name, zoom, ...props } = {}){
+    const [ParquetLayer, ParquetFilesData, parquetUtils] = await $arcgis.import([
+      "@arcgis/core/layers/ParquetLayer.js", "@arcgis/core/layers/support/ParquetFilesData.js",
+      "@arcgis/core/layers/support/parquetUtils.js"]);
+    const data = new ParquetFilesData({ urls: [`${location.origin}/artifacts?path=${encodeURIComponent(path)}`] });
+    const info = await parquetUtils.getParquetLayerInfo(data);
+    const make = async (extra) => {
+      const layer = new ParquetLayer({ title: path.split("/").pop(), ...info,
+        spatialReference: info.spatialReference ?? { wkid: 4326 }, ...extra, ...props });
+      await layer.load();
+      return layer;
+    };
+    let layer = await make({});
+    // ponytail: a point file whose first row has no geometry is retried as lines too.
+    if(layer.geometryType === "point" && !props.geometryType){
+      const [first] = (await layer.queryFeatures({ where: "1=1", returnGeometry: true, num: 1 })).features;
+      if(first && !first.geometry){ layer.destroy(); layer = await make({ geometryType: "polyline" }); }
+    }
+    return this.addLayer(layer, { name, zoom });
+  },
+  removeLayer(name){ const l = codeLayers.get(name); if(l){ mapEl.map.remove(l); codeLayers.delete(name); } },
+  clearLayers(){ for(const l of codeLayers.values()) mapEl.map.remove(l); codeLayers.clear(); },
+  legend({ slot = "bottom-right" } = {}){
+    let el = mapEl.querySelector("arcgis-legend");
+    if(!el){ el = document.createElement("arcgis-legend"); mapEl.appendChild(el); }
+    el.slot = slot;
+    return el;
+  },
+  // Frame the view on a layer (its queried extent), geometry, graphics or extent. Never throws.
+  async zoomTo(target){
+    try {
+      if(target && typeof target.when === "function"){
+        await target.when();
+        const r = typeof target.queryExtent === "function" ? await target.queryExtent() : null;
+        const extent = r?.extent ?? target.fullExtent;
+        if(extent){ await view.goTo(extent.expand(1.15)); return; }
+      }
+      await view.goTo(target);
+    } catch(_){}
+  },
+};
+
+// --- run generated JS as an async function with `api`; capture console + result
+const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
+const MAX_LOG_ENTRIES = 200, MAX_LOG_CHARS = 64 * 1024, MAX_RESULT_CHARS = 256 * 1024;
+function boundedResult(value){
+  let encoded;
+  try { encoded = JSON.stringify(value); } catch(_){ return redact(String(value)); }
+  if(encoded === undefined) return null;
+  encoded = redact(encoded);
+  return encoded.length <= MAX_RESULT_CHARS ? JSON.parse(encoded) : { truncated: true, preview: encoded.slice(0, MAX_RESULT_CHARS) };
+}
+// Generated code runs with page privileges, so this is best-effort against
+// accidental leaks (a returned credential, a logged request URL), not a sandbox.
+function redact(text){
+  for(const token of tokens) text = text.split(token).join("[redacted]");
+  return text;
+}
+
+async function runCode(code, id, deadline, send){
+  const logs = []; const orig = { log: console.log, warn: console.warn, error: console.error };
+  let logChars = 0;
+  console.log = console.warn = console.error = (...a) => {
+    if(logs.length >= MAX_LOG_ENTRIES || logChars >= MAX_LOG_CHARS) return;
+    const line = redact(a.map(x => { if(typeof x === "string") return x; try { return JSON.stringify(x); } catch(_){ return String(x); } })
+      .join(" ")).slice(0, MAX_LOG_CHARS - logChars);
+    logs.push(line); logChars += line.length;
+  };
+  let ok = true, error = null, result = null, timer = null;
+  const controller = new AbortController();
+  setStatus("running code…");
+  try {
+    const remaining = deadline - performance.now();
+    if(remaining <= 0) throw new DOMException("exec deadline exceeded", "TimeoutError");
+    const runApi = Object.create(api, { signal: { value: controller.signal } });
+    const execution = new AsyncFunction("api", "signal", code)(runApi, controller.signal);
+    const expiry = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        const reason = new DOMException("exec deadline exceeded", "TimeoutError");
+        controller.abort(reason); reject(reason);
+      }, remaining);
+    });
+    result = boundedResult(await Promise.race([execution, expiry]));
+  } catch(e){ ok = false; error = (e && e.stack) || String(e); }
+  finally { clearTimeout(timer); Object.assign(console, orig); }
+  setStatus(ok ? `ran code ${new Date().toLocaleTimeString()}` : "code error (returned to the agent)", !ok);
+  send(redact(JSON.stringify({ id, ok, error, console: logs, result })));
+}
+
+// --- page channel: runJs arrives on an EventSource (it reconnects by itself);
+// results go back by POST with this connection's secret.
+let secret = null, execQueue = Promise.resolve();
+const events = new EventSource("/events");
+events.onopen = () => setStatus("live: waiting for the agent");
+events.onerror = () => setStatus("reconnecting…");
+events.onmessage = (ev) => {
+  let msg; try { msg = JSON.parse(ev.data); } catch(_){ return; }
+  if(msg.type === "hello"){ secret = msg.secret; return; }
+  if(msg.type === "auth"){ applyAuth(msg); return; }
+  if(msg.type !== "runJs") return;
+  const page = secret;
+  const deadline = performance.now() + msg.timeoutMs;
+  execQueue = execQueue.then(() => runCode(msg.code, msg.id, deadline, (text) =>
+    fetch("/result", { method: "POST", headers: { "content-type": "application/json", "x-mappi-page": page }, body: text })
+      .catch(() => {})
+  )).catch(err => setStatus(`code runner error: ${err.message}`, true));
+};
+</script>
+</body>
+</html>

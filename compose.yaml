@@ -1,0 +1,19 @@
+# Smoke test: launcher, plugin tests and the pi extension. No LLM or portal calls.
+#   mkdir -p artifacts .arcgis   # once: the tmpfs mount points must exist in the read-only checkout
+#   docker compose run --rm arcpi && docker compose down
+services:
+  arcpi:
+    build: .
+    environment:
+      ARCGIS_PORTAL_URL: ${ARCGIS_PORTAL_URL:?export ARCGIS_PORTAL_URL}
+      ARCGIS_CLIENT_ID: ${ARCGIS_CLIENT_ID:?export ARCGIS_CLIENT_ID}
+    # Read-only checkout; tmpfs keeps the container's ArcGIS sessions and artifacts away
+    # from the host's cached logins. Only .pi/ is writable: pi locks .pi/settings.json
+    # before reading it and ignores the file when it cannot.
+    volumes:
+      - .:/work/arcpi:ro
+      - ./.pi:/work/arcpi/.pi
+    tmpfs:
+      - /work/arcpi/.arcgis:uid=1000,gid=1000,mode=700
+      - /work/arcpi/artifacts:uid=1000,gid=1000,mode=700
+    command: ["test/smoke.sh"]

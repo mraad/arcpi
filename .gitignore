@@ -1,0 +1,13 @@
+.arcgis/
+artifacts/
+# Recorded demo videos (docs/video/record.sh).
+/video/
+# The folder before ARCPI_ARTIFACTS_DIR.
+outputs/
+.env
+.env.*
+.pi/sessions/
+.DS_Store
+.resume
+resume.sh
+resume.txt

@@ -1,0 +1,6 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "mappi": { "type": "streamable-http", "url": "http://127.0.0.1:8787/mcp" }
+  }
+}

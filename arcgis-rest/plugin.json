@@ -1,0 +1,18 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "arcgis-rest",
+  "version": "0.3.4",
+  "description": "Call ArcGIS REST endpoints directly from agent scripts: portal search and items, feature layer queries, geocoding, routing, places, elevation and GeoEnrichment, as the signed-in portal user. Also local GIS sources, standalone ArcGIS Maps SDK maps and the live mappi map over MCP.",
+  "repository": "https://github.com/mraad/arcpi",
+  "license": "Apache-2.0",
+  "keywords": ["arcgis", "gis", "rest", "codemode", "pi", "mcp"],
+  "extensions": {
+    "dev.pi": {
+      "mcpServers": {
+        "mappi": {
+          "description": "Live map (mappi), present only while its server runs; read the mappi skill before the first call. Runs map JS in the open ArcGIS Maps SDK page"
+        }
+      }
+    }
+  }
+}
