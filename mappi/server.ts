@@ -61,6 +61,7 @@ ONLY \`api\` and \`return\` a small JSON-safe summary. The \`api\` surface:
   api.view, api.map, api.signal (AbortSignal; honor it in long work)
   api.import(paths)            -> $arcgis.import(...) for ANY @arcgis/core module
   api.addLayer(layer, {name, zoom}), api.removeLayer(name), api.clearLayers(), api.layers
+    name defaults to layer.uid; clearLayers removes every layer added through api
   api.zoomTo(target), api.legend()
   api.parquetLayer(absolutePath, {name, zoom}) -> a saved .parquet file as a ParquetLayer
   api.user                     -> signed-in ArcGIS username, or null

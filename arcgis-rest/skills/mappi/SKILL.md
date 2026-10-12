@@ -41,6 +41,8 @@ the full description.
 - `api.import(paths)` → `$arcgis.import(...)` for any `@arcgis/core/...` module.
 - `api.addLayer(layer, { name, zoom })` returns the layer and adds an attribute
   popup; `api.removeLayer(name)`, `api.clearLayers()`, `api.layers` (a Map by name).
+  Omit `name` to use the SDK's `layer.uid`; adding the same name replaces its
+  layer. `clearLayers()` removes all layers added through this API.
   It takes a **layer**: a `Graphic` on its own is not one (put graphics in a
   `GraphicsLayer`).
 - `api.zoomTo(target)`, `api.legend()` (the legend also updates itself).

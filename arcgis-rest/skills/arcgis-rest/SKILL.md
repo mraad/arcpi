@@ -87,6 +87,8 @@ GeoJSON file under `artifacts/geometry/` and leaves a reference in their place:
   (`references/geometry.md`), filter with spatial queries, and draw by giving the
   file path to the map.
 - Ask for `outSR: 4326` whenever the shapes are meant for the map.
+- True curves (`curveRings`, `curvePaths`) are rejected, including in batched
+  shapes. Repeat the request without `returnTrueCurves`.
 
 ## Rules
 

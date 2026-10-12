@@ -14,6 +14,7 @@ import { after, before, beforeEach, test } from 'node:test';
 import { accessToken, configFromEnv, login, logout, mapAuth, readSession, request, status } from '../arcgis-rest/dev.pi/extensions/arcgis/arcgis.ts';
 import type { Config, Session } from '../arcgis-rest/dev.pi/extensions/arcgis/arcgis.ts';
 import { pluginMcpServers } from '../arcgis-rest/dev.pi/extensions/arcgis/mcp.ts';
+import { externalize } from '../arcgis-rest/dev.pi/extensions/arcgis/geometry.ts';
 
 const plugin = join(import.meta.dirname, '../arcgis-rest');
 const temporary = realpathSync(mkdtempSync(join(tmpdir(), 'arcgis-rest-')));
@@ -418,16 +419,13 @@ test('a trusted host that refuses every token is called without one', async () =
   assert.ok(portal.seen.every((call) => call.token), 'the portal host gets no anonymous retry');
 });
 
-test('trust learned before signing in is asked for again', async (t) => {
-  t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
+test('trust learned before signing in is asked for again immediately', async () => {
   const cfg = project();
   portal.self = { isPortal: false, helperServices: { geocode: [{ url: `${otherUrl}/arcgis/rest/services/World/GeocodeServer` }] } };
   await request(cfg, { url: `${otherUrl}/rest/echo` }); // anonymous: the portal names no helper hosts
   signedIn(cfg); // as `./arcpi login` in another shell would
-  assert.match((await request(cfg, { url: `${otherUrl}/rest/echo` })).note!, /token was not sent/, 'not asked again at once');
-  t.mock.timers.tick(31_000);
   assert.equal((await request(cfg, { url: `${otherUrl}/rest/echo` })).note, undefined);
-  assert.deepEqual(portal.seen.map((call) => call.token), [null, null, 'access-0']);
+  assert.deepEqual(portal.seen.map((call) => call.token), [null, 'access-0']);
 });
 
 test('a login from another process invalidates the map trust and token-refusal cache', async () => {
@@ -521,6 +519,28 @@ test('lines, other spatial references, GeoJSON and bare shapes are stored too', 
   const padded = await request(cfg, { url: '/rest/padded' });
   assert.equal((padded.data as any).features[0].geometry.type, 'esriGeometryPolygon', 'JSON after long whitespace is still externalized');
   assert.ok(!JSON.stringify(padded).includes('rings'), 'whitespace cannot bypass geometry externalization');
+});
+
+test('geometry summaries cover every nesting depth and ignore Z values in bounds', () => {
+  const cfg = project();
+  const points = [[-3, 7, 100], [5, -2, -100], [5, 7, 0], [-3, 7, 100]];
+  for (const [type, coordinates] of [
+    ['MultiPoint', points], ['LineString', points], ['MultiLineString', [points]],
+    ['Polygon', [points]], ['MultiPolygon', [[points]]],
+  ]) {
+    const result = externalize({ type, coordinates }, cfg.artifactsDir);
+    assert.deepEqual([(result.data as any).vertices, (result.data as any).bbox], [4, [-3, -2, 5, 7]]);
+    assert.deepEqual(JSON.parse(readFileSync(result.files[0].path, 'utf8')).features[0].geometry, { type, coordinates });
+  }
+});
+
+test('batched shapes reject true curves before writing a partial geometry file', () => {
+  const cfg = project();
+  const curved = { rings: [outline], curveRings: [[[0, 0], { c: [[1, 1], [0, 1]] }]] };
+  for (const root of [[curved], { features: [{ geometry: curved }] }]) {
+    assert.throws(() => externalize(root, cfg.artifactsDir), /true curves/);
+    assert.equal(existsSync(cfg.artifactsDir), false, 'no misleading straight-line file is written');
+  }
 });
 
 test('artifact reads and writes refuse symlinks, including the artifacts root', async () => {

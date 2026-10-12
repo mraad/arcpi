@@ -88,7 +88,7 @@ and sign-in commands:
 ./arcpi             # Interactive session; expires old artifacts
 ./arcpi login       # Browser OAuth; also expires old artifacts
 bash -n arcpi       # Bash syntax
-node --test test/   # Both test files
+node --test test/   # All three test files
 git diff --check    # Whitespace checks
 docker compose run --rm arcpi && docker compose down  # Smoke: launcher, tests, plugin, project settings
 ```
@@ -146,7 +146,8 @@ Token rules, all in `arcgis.ts`:
   `helperServices`, federated servers, trusted servers, `*.arcgis.com` for an
   ArcGIS Online portal, `ARCGIS_TRUSTED_TOKEN_HOSTS`. An answer the portal gave
   without a session (or no answer) is asked for again after 30 s; a signed-in
-  answer is kept for the process.
+  answer is kept until login/logout changes, including in another process.
+  Switching from anonymous to signed in invalidates it immediately.
 - Redirects are followed manually, and every hop gets the same checks as the
   first URL: trust before the token is attached, and refusal of token endpoints.
   `token` params are refused, including redirect URLs, and token strings are

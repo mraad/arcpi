@@ -96,9 +96,10 @@ const api = {
   layers: codeLayers,
   get user(){ return user; },
   addLayer(layer, { name, zoom } = {}){
-    if(name && codeLayers.has(name)) mapEl.map.remove(codeLayers.get(name));
+    name ??= layer.uid;
+    if(codeLayers.has(name)) mapEl.map.remove(codeLayers.get(name));
     mapEl.map.add(layer);
-    if(name) codeLayers.set(name, layer);
+    codeLayers.set(name, layer);
     // Auto popup: the SDK's own field table, once the layer knows its fields.
     layer.when?.(() => {
       if(!layer.popupTemplate && layer.createPopupTemplate) layer.popupTemplate = layer.createPopupTemplate();

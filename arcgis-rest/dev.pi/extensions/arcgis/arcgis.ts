@@ -83,7 +83,7 @@ const profileOf = (cfg: Config): Profile => {
   let profile = profiles.get(cfg.sessionFile);
   const session = readSession(cfg);
   const identity = session?.login_id ?? session?.username;
-  if (!profile || (profile.sessionIdentity !== undefined && profile.sessionIdentity !== identity)) {
+  if (!profile || profile.sessionIdentity !== identity) {
     profiles.set(cfg.sessionFile, (profile = {}));
   }
   profile.sessionIdentity = identity;
