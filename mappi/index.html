@@ -96,7 +96,7 @@ const api = {
   layers: codeLayers,
   get user(){ return user; },
   addLayer(layer, { name, zoom } = {}){
-    name ||= layer.uid;
+    name ??= layer.uid;
     if(codeLayers.has(name)) mapEl.map.remove(codeLayers.get(name));
     mapEl.map.add(layer);
     codeLayers.set(name, layer);

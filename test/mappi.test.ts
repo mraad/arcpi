@@ -268,6 +268,15 @@ test('the page applies shared auth, scopes SDK requests, and redacts retired tok
   assert.equal(elements.map.map.layers.size, 1);
   assert.equal((await execute("api.addLayer({ uid: 'another' }); api.clearLayers(); return api.layers.size;")).result, 0);
   assert.equal(elements.map.map.layers.size, 0, 'clearLayers removes unnamed layers too');
+  const emptyName = await execute(`
+    api.addLayer({ uid: 'empty-old' }, { name: '' });
+    api.addLayer({ uid: 'empty-new' }, { name: '' });
+    return { keys: [...api.layers.keys()], ids: [...api.map.layers].map(layer => layer.uid) };
+  `);
+  assert.equal(emptyName.ok, true, emptyName.error);
+  assert.deepEqual(emptyName.result, { keys: [''], ids: ['empty-new'] });
+  assert.equal((await execute("api.removeLayer(''); return api.layers.size;")).result, 0);
+  assert.equal(elements.map.map.layers.size, 0, 'an explicit empty name stays removable');
   const reply = await execute('const [, idm] = await api.import([]); console.log(idm.credentials[0]); return {user: api.user, token: idm.credentials[0].token};');
   assert.equal(reply.ok, true);
   assert.deepEqual(reply.result, { user: 'tester', token: '[redacted]' });
