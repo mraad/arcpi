@@ -7,6 +7,8 @@ its results come back as references too. It reads no layer and costs no
 credits.
 Reference reads and generated files stay under `artifacts/` and refuse symlinks
 at every component, including `artifacts` itself.
+True curves are not stored: if the tool reports them, repeat the request
+without `returnTrueCurves`, including for a list of shapes or a feature set.
 
 On ArcGIS Online this is a public utility service that accepts no token. The
 tool finds that out on the first call and then calls it anonymously, so the

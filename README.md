@@ -172,6 +172,7 @@ arcgis-rest/
 ├── mcp.json                       # MCP servers: mappi (the live map)
 ├── skills/
 │   ├── arcgis-rest/               # SKILL.md + references: endpoints and their parameters
+│   ├── arcgis-map/                # standalone HTML maps
 │   ├── mappi/                     # the live map through the mappi tools
 │   └── local-gis/                 # local projects, FileGDB and exports
 └── dev.pi/extensions/arcgis/      # client extension directory for pi
@@ -301,9 +302,9 @@ How the token is used:
   Redirects are followed by hand and re-checked per host. Plain `http` only
   ever carries a token to loopback. Internal OAuth and trust-discovery requests
   refuse redirects so credentials cannot be forwarded to another host.
-  What the portal answered before sign-in, or a failed discovery, is
-  asked for again after 30 seconds, so a login made in another shell takes
-  effect without a restart.
+  Anonymous or failed discovery is retried after 30 seconds. A new login or
+  logout, including one made in another shell, immediately clears the profile's
+  cached trust, token-refusing hosts and refresh failure; no restart is needed.
 - **Never in the model's hands.** Scripts cannot pass a `token` parameter, the
   OAuth and `generateToken` endpoints are not callable, directly or through a
   redirect, and token strings are redacted from responses.
@@ -430,6 +431,9 @@ shape with its spatial reference; a list of references is merged into one
 multipart shape. The result's `geometry_files` names the files by absolute
 path, which the live map reads directly (`saved.path` is absolute too).
 Attributes, counts, single points and extents stay inline.
+Vertex counts and XY bounds are computed directly over the coordinates, without
+allocating an iterator for each vertex. True curves (`curveRings`, `curvePaths`)
+are rejected even in batched results; repeat the request without `returnTrueCurves`.
 References resolve only to files under `artifacts/`; reference reads, exports
 and generated geometry files refuse symlinks at every component, including the
 artifacts root. References expire with the startup cleanup of `artifacts/`
@@ -537,6 +541,11 @@ serves `.geojson`/`.json`/`.parquet` files under `artifacts/` (never dot
 folders), with byte ranges for `ParquetLayer`. The page's
 `api.parquetLayer(path)` draws a (Geo)Parquet file and covers two SDK 5.1.4
 gaps: a file without a CRS (CRS84 by the GeoParquet spec) and MultiLineString.
+
+`api.addLayer(layer, { name, zoom })` tracks each layer by `name`, or by the
+SDK's `layer.uid` when no name is given. Reusing a name replaces its layer;
+`api.removeLayer(name)` removes it, and `api.clearLayers()` removes every layer
+added through the API, including unnamed layers.
 
 ```bash
 ARCGIS_PORTAL_URL=… ARCGIS_CLIENT_ID=… node mappi/server.ts   # http://127.0.0.1:8787/
@@ -819,6 +828,7 @@ settings in an untrusted folder and a session without a UI cannot ask for trust.
 ```bash
 bash -n arcpi
 node --test test/
+git diff --check
 ```
 
 `test/arcgis.test.ts` runs the session and request code against a fake portal
@@ -833,4 +843,8 @@ the extension registers or skips and reports. `test/launcher.test.ts` drives the
 pi in temporary workspaces: argument forwarding, relative paths, sign-in
 commands, local sessions without portal settings, profile separation, missing
 settings, exit codes, and age-based
-cleanup of `artifacts/` without following symlinks. Neither calls an LLM or a portal.
+cleanup of `artifacts/` without following symlinks. `test/mappi.test.ts` checks
+MCP and the page channel with fake browser connections, shared authentication
+and redaction, named and unnamed layer cleanup, artifact confinement and byte
+ranges, and Host/Origin and bearer checks. All tests use temporary fixtures;
+none calls an LLM or a live portal.

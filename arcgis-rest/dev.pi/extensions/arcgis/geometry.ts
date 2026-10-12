@@ -95,6 +95,9 @@ const contains = (ring: Ring, [x, y]: number[]): boolean => {
 /** Esri JSON geometry as GeoJSON; GeoJSON is returned as it is. */
 function toGeoJson(geometry: any): { type: string; coordinates: any } | null {
   if (!geometry || typeof geometry !== "object") return null;
+  if (geometry.curveRings || geometry.curvePaths) {
+    throw new Error("The response holds true curves, which cannot be stored: repeat it without returnTrueCurves.");
+  }
   if (typeof geometry.type === "string") return geometry;
   if (isPath(geometry.points)) return { type: "MultiPoint", coordinates: geometry.points };
   if (Array.isArray(geometry.paths)) {
@@ -134,9 +137,18 @@ function toEsri(shape: { type: string; coordinates: any }): Record<string, unkno
   }
 }
 
-function* positions(coordinates: any): Generator<number[]> {
-  if (isPosition(coordinates)) yield coordinates;
-  else for (const part of coordinates) yield* positions(part);
+function measure(coordinates: any, bbox: number[]): number {
+  if (isPosition(coordinates)) {
+    const [x, y] = coordinates;
+    bbox[0] = Math.min(bbox[0], x);
+    bbox[1] = Math.min(bbox[1], y);
+    bbox[2] = Math.max(bbox[2], x);
+    bbox[3] = Math.max(bbox[3], y);
+    return 1;
+  }
+  let vertices = 0;
+  for (const part of coordinates) vertices += measure(part, bbox);
+  return vertices;
 }
 
 const wkidOf = (sr: any): number | undefined =>
@@ -175,15 +187,8 @@ export function externalize(root: unknown, artifactsDir: string, askedSr?: unkno
     files.push({ path, features: features.length, wkid });
     return stored.map((geometry, i) => {
       if (!geometry || !isShape(features[i].geometry)) return undefined;
-      let vertices = 0;
       const bbox = [Infinity, Infinity, -Infinity, -Infinity];
-      for (const [x, y] of positions(geometry.coordinates)) {
-        vertices++;
-        bbox[0] = Math.min(bbox[0], x);
-        bbox[1] = Math.min(bbox[1], y);
-        bbox[2] = Math.max(bbox[2], x);
-        bbox[3] = Math.max(bbox[3], y);
-      }
+      const vertices = measure(geometry.coordinates, bbox);
       return { $geometry: `${shown}#${i}`, type: ESRI_TYPE[geometry.type], vertices, bbox };
     });
   };

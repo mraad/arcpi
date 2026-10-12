@@ -202,7 +202,16 @@ test('the page applies shared auth, scopes SDK requests, and redacts retired tok
     getCredential: async (_url: string) => null,
   };
   const elements: Record<string, any> = {
-    map: { view: {}, map: {}, viewOnReady: async () => {} },
+    map: {
+      view: {},
+      map: {
+        layers: new Set(),
+        add(layer: unknown) { this.layers.add(layer); },
+        remove(layer: unknown) { this.layers.delete(layer); },
+      },
+      viewOnReady: async () => {},
+      querySelector: () => ({}),
+    },
     status: { classList: { toggle() {} } }, user: {},
   };
   let events: any;
@@ -247,6 +256,18 @@ test('the page applies shared auth, scopes SDK requests, and redacts retired tok
     assert.equal(results.length, count + 1);
     return results.at(-1);
   };
+  const layers = await execute(`
+    api.addLayer({ uid: 'unnamed' });
+    api.addLayer({ uid: 'old' }, { name: 'result' });
+    api.addLayer({ uid: 'new' }, { name: 'result' });
+    return { keys: [...api.layers.keys()], ids: [...api.map.layers].map(layer => layer.uid) };
+  `);
+  assert.equal(layers.ok, true, layers.error);
+  assert.deepEqual(layers.result, { keys: ['unnamed', 'result'], ids: ['unnamed', 'new'] });
+  assert.equal((await execute("api.removeLayer('unnamed'); return api.layers.size;")).result, 1);
+  assert.equal(elements.map.map.layers.size, 1);
+  assert.equal((await execute("api.addLayer({ uid: 'another' }); api.clearLayers(); return api.layers.size;")).result, 0);
+  assert.equal(elements.map.map.layers.size, 0, 'clearLayers removes unnamed layers too');
   const reply = await execute('const [, idm] = await api.import([]); console.log(idm.credentials[0]); return {user: api.user, token: idm.credentials[0].token};');
   assert.equal(reply.ok, true);
   assert.deepEqual(reply.result, { user: 'tester', token: '[redacted]' });
