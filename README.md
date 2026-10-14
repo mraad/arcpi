@@ -832,7 +832,7 @@ mkdir -p artifacts .arcgis   # once: tmpfs mount points in the read-only checkou
 docker compose run --rm arcpi && docker compose down
 ```
 
-Builds a small image (Node 26 on Debian trixie, pi 1.1.0, RTK 0.51.0, fd and ripgrep for pi's find and grep tools), mounts this checkout
+Builds a small image (Node 26 on Debian trixie, pi 1.2.0, RTK 0.51.0, fd and ripgrep for pi's find and grep tools), mounts this checkout
 read-only, then runs `test/smoke.sh`: `./arcpi status`,
 `./arcpi --version`, `rtk --version`, the test suite, a check that pi lists the plugin's slash
 command and skills, a check that pi applied `.pi/settings.json` (`codemode`

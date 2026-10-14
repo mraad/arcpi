@@ -8,7 +8,7 @@ ADD --checksum=sha256:8d6d1aad9e69b42481eda7039507d1f7ee93698f87713cecd873d287c1
 FROM rtk-${TARGETARCH} AS rtk
 
 FROM node:26-trixie-slim
-ARG PI_VERSION=1.1.0
+ARG PI_VERSION=1.2.0
 COPY --from=rtk /rtk.tar.gz /tmp/rtk.tar.gz
 # pi downloads fd and ripgrep into its agent directory when missing; install them instead.
 RUN apt-get update && apt-get install -y --no-install-recommends fd-find ripgrep \

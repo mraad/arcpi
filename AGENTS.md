@@ -67,7 +67,7 @@ native `ls`, `find`, `grep` and disables `bash`, `powershell`.
 - `compose.yaml`, `Dockerfile`, `test/smoke.sh`: Docker smoke test (no LLM or
   portal calls). Read-only checkout except `.pi/` (pi must lock
   `settings.json` to read it); `--approve` trusts the project.
-  The image pins pi 1.1.0 and RTK 0.51.0 (Linux arm64/amd64). `.dockerignore`
+  The image pins pi 1.2.0 and RTK 0.51.0 (Linux arm64/amd64). `.dockerignore`
   excludes everything but the `Dockerfile`: the checkout is mounted, never
   copied, so credentials and artifacts stay out of the build context.
 - `README.md`: setup, authentication, skills, operations.

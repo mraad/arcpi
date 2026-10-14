@@ -779,6 +779,8 @@ test('skill scripts compile as JavaScript and their parameter tables match the r
     // Codemode scripts are JavaScript: TypeScript syntax or a broken example fails here.
     for (const [, code] of text.matchAll(/```js\n([\s\S]*?)```/g)) {
       assert.doesNotThrow(() => new AsyncFunction(code), `${file}: a js block does not compile:\n${code}`);
+      // pi refuses a script whose `// @options:` line is not its first line.
+      assert.ok(!code.split('\n').slice(1).some((line) => line.trimStart().startsWith('// @options:')), `${file}: // @options: must be line 1:\n${code}`);
     }
     let endpoint: URL | undefined;
     for (const line of text.split('\n')) {
