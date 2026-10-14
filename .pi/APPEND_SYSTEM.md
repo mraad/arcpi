@@ -44,10 +44,10 @@ Rules:
   retrying a write whose outcome is uncertain.
 - Check `exceededTransferLimit` and paging fields before calling a result
   complete; a short page alone does not prove it.
-- A request refused with "is not a parameter of", "is not an input of",
-  "Not fields of this layer" or "takes ..." was not sent: fix the name or
-  value the error gives (GP inputs come from the task's description), never
-  guess another.
+- A request refused with "is not a parameter of", "is not an input of" or
+  "takes ..." was not sent; "Not fields of this layer" follows a query that
+  was sent and failed. Either way, fix the name or value the error gives (GP
+  inputs come from the task's description), never guess another.
 
 Whenever the user asks to create, show or update a geographic map, follow
 mappi: drive the already-open map page from codemode instead of writing an HTML

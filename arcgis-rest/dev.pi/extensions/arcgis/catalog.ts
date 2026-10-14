@@ -134,7 +134,9 @@ const OPERATIONS: [RegExp, Operation][] = [
 const COMMON = ["f", "token"];
 /** GP task runs: the task's own inputs plus these (execute and submitJob pages); env:* are environment settings. */
 const GP_RUN = /\/GPServer\/[^/]+\/(execute|submitJob)$/i;
-const GP_COMMON = ["f", "context", "returnZ", "returnM", "returnTrueCurves", "returnFeatureCollection", "returnColumnName", "simplifyFeatures"];
+const GP_COMMON = ["f", "context", "returnZ", "returnM", "returnTrueCurves", "returnFeatureCollection", "returnColumnName", "simplifyFeatures",
+  // submitJob only: hosted outputs (Enterprise 11+, image services 11.4+).
+  "esri_out_feature_service_name", "esri_out_image_service"];
 const LAYER_QUERY = OPERATIONS[0][1];
 
 export const operationFor = (url: URL): Operation | undefined => OPERATIONS.find(([pattern]) => pattern.test(url.pathname))?.[1];
@@ -235,8 +237,8 @@ export function geometryValueProblem(url: URL, params: Record<string, unknown>):
     if (value === undefined || value === null) continue;
     if (LINEAR_UNITS.includes(key) && !/^\d+$/.test(String(value))) {
       problems.push(`"${name}" takes a unit code, such as 9001 (meters), 9036 (kilometers) or 9093 (miles), not ${JSON.stringify(value)}.`);
-    } else if (key === "areaunit" && !(isObject(value) && typeof value.areaUnit === "string")) {
-      problems.push(`"${name}" takes an object, such as { areaUnit: "esriSquareKilometers" }, not ${JSON.stringify(value)}.`);
+    } else if (key === "areaunit" && !/^\d+$/.test(String(value)) && !(isObject(value) && typeof value.areaUnit === "string")) {
+      problems.push(`"${name}" takes an object, such as { areaUnit: "esriSquareKilometers" }, or a linear unit code such as 9036, not ${JSON.stringify(value)}.`);
     } else if (wrapped.includes(key) && !(isObject(value) && "geometryType" in value && "geometry" in value)) {
       problems.push(`"${name}" takes { geometryType, geometry }, with the shape or its reference under geometry.`);
     }

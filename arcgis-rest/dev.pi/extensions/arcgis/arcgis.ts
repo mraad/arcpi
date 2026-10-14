@@ -80,7 +80,7 @@ const MAX_REDIRECTS = 5;
 // Sign-in and refresh belong to this module; a script reaching these would receive raw tokens.
 const TOKEN_ENDPOINT = /\/(oauth2|tokens|generateToken)(?=[/;]|$)/i;
 /** A token in a URL query string, up to the next delimiter of a URL inside text or JSON. */
-const TOKEN_IN_URL = /([?&](?:token|access_token)=)[^&\s"'<>)\\]+/gi;
+const TOKEN_IN_URL = /((?:[?&]|\\u0026)(?:token|access_token)(?:=|\\u003d))[^&\s"'<>)\\]+/gi;
 
 const profiles = new Map<string, Profile>();
 
@@ -514,8 +514,9 @@ export async function request(cfg: Config, args: RequestArgs, signal?: AbortSign
   if (!url) throw new Error(`Not a URL: ${args.url}. Use an absolute URL, or a path starting with / for the portal.`);
   if (!isHttp(url)) throw new Error(`Unsupported URL scheme: ${url.protocol}`);
   // ArcGIS ignores parameter names it does not know, so a misspelt one would pass for a default result.
-  const problem = parameterProblem(url, [...Object.keys(args.params ?? {}), ...url.searchParams.keys()])
-    ?? geometryValueProblem(url, args.params ?? {});
+  // Both the URL query and params reach ArcGIS; params win on a name in both, as checked here.
+  const given = { ...Object.fromEntries(url.searchParams), ...args.params };
+  const problem = parameterProblem(url, Object.keys(given)) ?? geometryValueProblem(url, given);
   if (problem) throw new Error(problem);
   if (isGpRun(url)) {
     const taskUrl = `${url.origin}${url.pathname.replace(/\/(execute|submitJob)$/i, "")}`;
@@ -523,7 +524,7 @@ export async function request(cfg: Config, args: RequestArgs, signal?: AbortSign
     // An unreadable task description skips the check (the run itself reports what is wrong) and is asked for again next time.
     if (!tasks.has(taskUrl)) tasks.set(taskUrl, request(cfg, { url: taskUrl }, signal).then((reply) => reply.data, () => void tasks.delete(taskUrl)));
     const task = await tasks.get(taskUrl);
-    const inputs = task && gpInputProblem(task, args.params ?? {});
+    const inputs = task && gpInputProblem(task, given);
     if (inputs) throw new Error(inputs);
   }
   const fields = new URLSearchParams();

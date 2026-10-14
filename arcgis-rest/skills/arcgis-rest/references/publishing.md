@@ -36,6 +36,17 @@ is read in the same script (`tools.read`), so its rows stay in the script.
 const rest = async (url, params, extra) => (await tools.arcgis_request({ url, params, ...extra })).data;
 const { username } = await rest("/sharing/rest/community/self");
 const content = `/sharing/rest/content/users/${encodeURIComponent(username)}`;
+// Rows from a local CSV with Name,Latitude,Longitude columns and no quoted commas, checked before anything is created.
+const [header, ...lines] = (await tools.read({ path: "data/sites.csv" })).trim().split("\n");
+const column = Object.fromEntries(header.split(",").map((title, i) => [title.trim(), i]));
+const missing = ["Name", "Latitude", "Longitude"].filter((title) => !(title in column));
+if (missing.length) return { error: `CSV lacks columns: ${missing.join(", ")}` };
+const coordinate = (cell) => (cell?.trim() ? Number(cell) : NaN); // Number("") is 0, a real place
+const rows = lines.map((line, i) => ({ row: i + 2, cells: line.split(",") }))
+  .map(({ row, cells }) => ({ row, x: coordinate(cells[column.Longitude]), y: coordinate(cells[column.Latitude]), name: cells[column.Name]?.trim() }));
+const bad = rows.filter(({ x, y }) => !Number.isFinite(x) || !Number.isFinite(y) || Math.abs(x) > 180 || Math.abs(y) > 90);
+if (bad.length) return { error: "Rows without valid coordinates", rows: bad.map(({ row }) => row).slice(0, 20) };
+const features = rows.map(({ x, y, name }) => ({ geometry: { x, y, spatialReference: { wkid: 4326 } }, attributes: { Name: name } }));
 const name = "Study_sites";
 if (!(await rest("/sharing/rest/portals/self/isServiceNameAvailable", { name, type: "Feature Service" })).available) {
   return { error: `A service named ${name} already exists` };
@@ -54,13 +65,6 @@ await rest(`${admin}/addToDefinition`, { addToDefinition: { layers: [{
     { name: "Name", type: "esriFieldTypeString", alias: "Name", length: 100 },
   ],
 }] } });
-// Rows from a local CSV with Name,Latitude,Longitude columns and no quoted commas.
-const [header, ...lines] = (await tools.read({ path: "data/sites.csv" })).trim().split("\n");
-const column = Object.fromEntries(header.split(",").map((title, i) => [title.trim(), i]));
-const features = lines.map((line) => line.split(",")).map((cells) => ({
-  geometry: { x: Number(cells[column.Longitude]), y: Number(cells[column.Latitude]), spatialReference: { wkid: 4326 } },
-  attributes: { Name: cells[column.Name] },
-}));
 const { addResults } = await rest(`${created.serviceurl}/0/addFeatures`, { features });
 return { itemId: created.itemId, layer: `${created.serviceurl}/0`, added: addResults.filter((r) => r.success).length, failed: addResults.filter((r) => !r.success) };
 ```

@@ -5,7 +5,7 @@
 //   node eval/run.ts run <label> [--reps N] [--only a,b] [--no-credits] [--model M] [--thinking T]
 //   node eval/run.ts report <label> [<label> ...]     # writes eval/RESULTS.md
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { configFromEnv, request } from "../arcgis-rest/dev.pi/extensions/arcgis/arcgis.ts";
@@ -35,12 +35,14 @@ interface Score {
   exit: number | null;
 }
 
-async function truths(refresh: boolean): Promise<Record<string, Answer>> {
-  if (!refresh && existsSync(truthFile)) return JSON.parse(readFileSync(truthFile, "utf8"));
+/** Expected answers for these tasks, computed only for the ones not cached (some cost credits). */
+async function truths(refresh: boolean, wanted: Task[] = tasks): Promise<Record<string, Answer>> {
+  const result: Record<string, Answer> = !refresh && existsSync(truthFile) ? JSON.parse(readFileSync(truthFile, "utf8")) : {};
+  const missing = wanted.filter((task) => !(task.id in result));
+  if (!missing.length) return result;
   const cfg = configFromEnv({ ...process.env, ARCGIS_SESSION_DIR: join(root, ".arcgis") }, root);
   const rest = async (url: string, params?: Record<string, unknown>) => (await request(cfg, { url, params })).data;
-  const result: Record<string, Answer> = {};
-  for (const task of tasks) result[task.id] = await task.truth(rest);
+  for (const task of missing) result[task.id] = await task.truth(rest);
   mkdirSync(runsDir, { recursive: true });
   writeFileSync(truthFile, JSON.stringify(result, null, 2));
   return result;
@@ -87,7 +89,10 @@ export function scoreSession(lines: any[], task: Task, truth: Answer) {
   } catch {
     answer = undefined;
   }
-  const wrong = answer ? task.check(answer, truth) : "no ANSWER line";
+  // A scalar or array ANSWER would make the key checks throw; it is a wrong answer, not a crash.
+  const wrong = !line ? "no ANSWER line"
+    : typeof answer !== "object" || answer === null || Array.isArray(answer) ? "ANSWER is not a JSON object"
+    : task.check(answer, truth);
   const usage = assistant.map((message) => message.usage ?? {});
   return {
     correct: !wrong,
@@ -106,13 +111,17 @@ export function scoreSession(lines: any[], task: Task, truth: Answer) {
 
 const sessionLines = (dir: string) => {
   const sessions = join(dir, "session");
-  const file = existsSync(sessions) ? readdirSync(sessions, { recursive: true, encoding: "utf8" }).find((name) => name.endsWith(".jsonl")) : undefined;
+  // A retried attempt leaves the earlier session file beside the new one: read the newest.
+  const file = existsSync(sessions)
+    ? readdirSync(sessions, { recursive: true, encoding: "utf8" }).filter((name) => name.endsWith(".jsonl"))
+      .sort((a, b) => statSync(join(sessions, b)).mtimeMs - statSync(join(sessions, a)).mtimeMs)[0]
+    : undefined;
   return file ? readFileSync(join(sessions, file), "utf8").trim().split("\n").map((text) => JSON.parse(text)) : [];
 };
 
 async function run(label: string, options: { reps: number; only?: string; credits: boolean; model: string; thinking: string; refresh: boolean }) {
-  const truth = await truths(options.refresh);
   const selected = tasks.filter((task) => (!options.only || options.only.split(",").includes(task.id)) && (options.credits || !task.credits));
+  const truth = await truths(options.refresh, selected);
   const resultsFile = join(runsDir, label, "results.json");
   const scores: Score[] = existsSync(resultsFile) ? JSON.parse(readFileSync(resultsFile, "utf8")) : [];
   for (let rep = 1; rep <= options.reps; rep++) {

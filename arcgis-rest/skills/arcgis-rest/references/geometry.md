@@ -18,7 +18,7 @@ Its answers do not say which spatial reference they are in: always pass `sr`
 (or `outSR`), which is also what the stored file is labelled with.
 
 Units are numeric codes (`9001` meters, `9036` kilometers, `9093` miles), not
-`esriSRUnit_*` names; `areaUnit` is an object; the second shape of
+`esriSRUnit_*` names; `areaUnit` is an object or a code; the second shape of
 `intersect`, `difference` and `distance` is wrapped as `{ geometryType,
 geometry }`. The service answers each mistake with an unrelated message
 ("empty geometry"), so the tool refuses them before sending.
@@ -30,7 +30,7 @@ geometry }`. The service answers each mistake with an unrelated message
 | `polygons` | Array of polygon references: `[feature.geometry]`. |
 | `sr` | WKID of those polygons, e.g. `4326`. |
 | `calculationType` | `geodesic` for anything in longitude/latitude. The default `planar` on WKID 4326 returns square **degrees**, which is meaningless. |
-| `areaUnit` | `{ areaUnit: "esriSquareKilometers" }`; also `esriSquareMiles`, `esriSquareMeters`, `esriHectares`, `esriAcres`. Default with `geodesic`: square meters. |
+| `areaUnit` | `{ areaUnit: "esriSquareKilometers" }`; also `esriSquareMiles`, `esriSquareMeters`, `esriHectares`, `esriAcres`. Or a linear unit code, squared: `9036` gives square kilometers. Default with `geodesic`: square meters. |
 | `lengthUnit` | A number: `9001` meters (default), `9036` kilometers, `9093` miles. |
 
 Response: `{ areas: [], lengths: [] }`, one entry per polygon, in input order.

@@ -111,6 +111,8 @@ const serve = (name: string, host: string) => new Promise<string>((listening) =>
     if (path === '/rest/leak') return json({ echoed: token });
     // An error that quotes a URL with a token the server minted itself.
     if (path === '/rest/minted') return json({ error: { code: 400, message: 'Error retrieving file from https://x/data?token=server-minted.1&v=2 (500)' } });
+    // The same, with = and & escaped as JSON may write them; parsing restores a live URL.
+    if (path === '/rest/minted-escaped') return response.writeHead(200, { 'Content-Type': 'application/json' }).end('{"url":"https://x/data?token\\u003dserver-minted.2\\u0026v=2"}');
     if (path === '/rest/empty') return response.writeHead(200).end();
     if (path === '/rest/padded') return response.writeHead(200, { 'Content-Type': 'application/json' }).end(' '.repeat(100) + JSON.stringify(shapes['/rest/polygons']));
     if (path === '/rest/large') return json({ rows: 'x'.repeat(500_000) });
@@ -276,7 +278,10 @@ test('documented operations refuse unknown parameter names before sending', asyn
   await request(cfg, { url: `${geometry}/lengths`, params: { lengthUnit: '9036' } });
   await request(cfg, { url: `${geometry}/areasAndLengths`, params: { areaUnit: { areaUnit: 'esriSquareMeters' } } });
   await request(cfg, { url: `${geometry}/difference`, params: { geometry: { geometryType: 'esriGeometryPolygon', geometry: { rings: [] } } } });
-  assert.equal(portal.seen.length, sent + 4, 'codes and wrapped operands pass');
+  await request(cfg, { url: `${geometry}/areasAndLengths`, params: { areaUnit: 9036 } });
+  assert.equal(portal.seen.length, sent + 5, 'codes and wrapped operands pass');
+  await assert.rejects(request(cfg, { url: `${geometry}/buffer?unit=esriSRUnit_Meter` }), /"unit" takes a unit code/, 'URL query values are checked too');
+  assert.equal(portal.seen.length, sent + 5);
 });
 
 test('GP task runs are checked against the task inputs, layer query failures name bad fields', async () => {
@@ -287,10 +292,13 @@ test('GP task runs are checked against the task inputs, layer query failures nam
     /"Raod" is not an input of task "T"\. Did you mean "ROAD"\?.*Its inputs: Query, ROAD\./);
   await assert.rejects(request(cfg, { url: execute, params: { ROAD: 'y' } }), /missing required input "Query"/, 'a required input without a default');
   await request(cfg, { url: execute, params: { Query: 'x', 'env:outSR': 4326, returnZ: false } });
-  await request(cfg, { url: '/rest/services/G/GPServer/T/submitJob', params: { Query: 'x' } });
+  await request(cfg, { url: '/rest/services/G/GPServer/T/submitJob', params: { Query: 'x', esri_out_feature_service_name: 'out' } });
+  await request(cfg, { url: '/rest/services/G/GPServer/T/execute?Query=x' });
+  await assert.rejects(request(cfg, { url: '/rest/services/G/GPServer/T/execute?Query=x&Raod=y' }), /"Raod" is not an input/, 'URL query inputs are checked too');
   assert.equal(gpInputProblem({ name: 'odd' }, { anything: 1 }), undefined, 'a description without parameters checks nothing');
   assert.deepEqual(portal.seen.map((call) => call.path), [
     '/rest/services/G/GPServer/T', '/rest/services/G/GPServer/T/execute', '/rest/services/G/GPServer/T/submitJob',
+    '/rest/services/G/GPServer/T/execute',
   ], 'the task is described once; refused runs are never sent');
   portal.seen.length = 0;
   await assert.rejects(request(cfg, { url: '/rest/services/L/FeatureServer/0/query', params: { outFields: 'NAME,POPULATON', orderByFields: 'n DESC',
@@ -735,6 +743,7 @@ test('ArcGIS error bodies throw, tokens are redacted and binary bodies need save
   assert.deepEqual((await request(cfg, { url: '/rest/leak' })).data, { echoed: '[redacted]' });
   await assert.rejects(request(cfg, { url: '/rest/minted' }), (error: Error) => !error.message.includes('server-minted') && error.message.includes('data?token=[redacted]&v=2'),
     'a token the server minted, quoted in a URL, is redacted too');
+  assert.deepEqual((await request(cfg, { url: '/rest/minted-escaped' })).data, { url: 'https://x/data?token=[redacted]&v=2' }, 'escaped = and & too');
   assert.equal((await request(cfg, { url: '/rest/empty' })).data, null, 'an empty body is not an error');
   await assert.rejects(request(cfg, { url: '/rest/report' }), /application\/pdf \(5 bytes\): pass save_to/);
   const saved = await request(cfg, { url: '/rest/report', save_to: 'artifacts/reports/report.pdf' });
