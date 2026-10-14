@@ -97,6 +97,7 @@ submit the job again just because it is slow.
 
 ```js
 // @options: {"timeout_ms": 120000}
+const rest = async (url, params, extra) => (await tools.arcgis_request({ url, params, ...extra })).data;
 const hotspot = "https://sampleserver6.arcgisonline.com/arcgis/rest/services/911CallsHotspot/GPServer/911%20Calls%20Hotspot";
 let jobId = load("gp.jobId");
 if (!jobId) {

@@ -15,7 +15,8 @@ Geometry is never handed to a script: shapes live in files and travel as
 references (see "Geometry travels by reference").
 
 ```js
-// Define at the top of every script; scripts share values only through store()/load().
+// Define at the top of every script, below a `// @options:` line, which must be line 1 if present.
+// Scripts share values only through store()/load().
 const rest = async (url, params, extra) => (await tools.arcgis_request({ url, params, ...extra })).data;
 
 const found = await rest("/sharing/rest/search", { q: 'title:parcels type:"Feature Service"', num: 5 });
@@ -215,6 +216,7 @@ are needed, process pages without retaining the entire feature array:
 
 ```js
 // @options: {"max_output_tokens": 2000}
+const rest = async (url, params, extra) => (await tools.arcgis_request({ url, params, ...extra })).data;
 const layer = "https://.../FeatureServer/0";
 const schema = await rest(layer);
 if (!schema.advancedQueryCapabilities?.supportsPagination) throw new Error("Use object ID chunks; see references/features.md");
@@ -237,6 +239,7 @@ return { count };
 Fan out, keep the successes, report the failures:
 
 ```js
+const rest = async (url, params, extra) => (await tools.arcgis_request({ url, params, ...extra })).data;
 const layers = [0, 1, 2].map((id) => `https://.../FeatureServer/${id}`);
 const settled = await Promise.allSettled(layers.map((layer) => rest(`${layer}/query`, { where: "1=1", returnCountOnly: true })));
 return settled.map((result, i) => ({ layer: layers[i], count: result.value?.count, error: result.reason?.message }));

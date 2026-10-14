@@ -49,7 +49,7 @@ and as `Dockerfile.openshell`:
 
 ```dockerfile
 FROM node:26-trixie-slim
-ARG PI_VERSION=1.1.0
+ARG PI_VERSION=1.2.0
 # pi fetches fd and ripgrep from GitHub when missing; the sandbox blocks that.
 RUN apt-get update \
   && apt-get install -y --no-install-recommends bash ca-certificates fd-find git ripgrep \
