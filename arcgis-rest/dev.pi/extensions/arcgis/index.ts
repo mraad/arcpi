@@ -57,7 +57,8 @@ export default function (pi: ExtensionAPI) {
           + "for example /sharing/rest/search",
       }),
       params: Type.Optional(Type.Record(Type.String(), Type.Any(), {
-        description: "REST parameters under their documented names (outFields, returnGeometry). Objects and "
+        description: "REST parameters under their documented names (outFields, returnGeometry); for the operations "
+          + "the arcgis-rest skill documents, and for GP task runs, an unknown name is refused before sending. Objects and "
           + "arrays are sent as JSON. f defaults to json. Never include token. Pass a shape as the reference "
           + "an earlier result gave: { $geometry: \"<path>#<n>\" }, or a list of references to merge them.",
       })),

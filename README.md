@@ -307,7 +307,10 @@ How the token is used:
   cached trust, token-refusing hosts and refresh failure; no restart is needed.
 - **Never in the model's hands.** Scripts cannot pass a `token` parameter, the
   OAuth and `generateToken` endpoints are not callable, directly or through a
-  redirect, and token strings are redacted from responses.
+  redirect, and token strings are redacted from responses: the session's own
+  tokens, and any `token=` / `access_token=` value in a URL inside a response,
+  because the portal can quote a token it minted itself in an error message
+  (`analyze`: "Error retrieving file from .../data?token=...").
 
 When the refresh token expires or is revoked, sign in again. Not supported:
 `generateToken` username/password logins, Integrated Windows Authentication,
@@ -357,10 +360,16 @@ The `arcgis-rest` skill teaches the endpoints and their REST parameters:
 | `geometry.md` | area and length, union, generalize, buffer, projection; heavy shapes |
 | `places-elevation.md` | elevation from the Terrain service, Places |
 | `geoenrichment.md` | variable discovery, enrichment, standard geographies, reports |
+| `geoprocessing.md` | GP task discovery, synchronous `execute`, asynchronous jobs (bounded polling), results, input formats |
+| `imagery.md` | image services: pixel values and class names, raster statistics and histograms, image export |
+| `publishing.md` | hosted feature layer from data (`createService`, `addToDefinition`, `addFeatures`), sharing, update, delete; why there is no file upload |
 | `errors.md`, `chaining.md` | error messages and what to do; multi-step patterns |
 
-It was checked against a live ArcGIS Online organization. Geoprocessing, publishing, knowledge graphs and
-utility networks are not covered yet.
+It was checked against a live ArcGIS Online organization and Esri's public
+sample servers. Knowledge graphs, utility networks and linear referencing
+are not covered yet. File uploads (CSV, shapefile, geodatabase items) are not
+possible: the tool sends form fields only, so `publishing.md` builds layers
+from data instead.
 
 The plugin ships every skill the agent uses, self-contained (a test checks
 that none depends on another checkout or skill tree):
@@ -409,6 +418,19 @@ to the model):
   retaining JSON and GeoJSON paging flags so scripts can detect incomplete
   files without reading their contents. It rejects on ArcGIS error bodies,
   which arrive with HTTP 200.
+
+  ArcGIS ignores parameter names it does not know, so a misspelt or invented
+  name returns a plausible default result. The tool therefore checks names
+  before sending, case-insensitively, for the operations the skill documents
+  (`catalog.ts`: layer queries, geocoding, route solve, geometry and image
+  operations, portal search, GeoEnrichment, the publishing calls; lists from Esri's REST docs plus
+  names ArcGIS Online was seen to honor, such as `having`). A GP `execute` or
+  `submitJob` is checked against the task's own inputs, read once per task. A
+  failed layer query reads the layer and names the fields it lacks. Geometry
+  operations also refuse three value shapes the service rejects with a
+  misleading message ("empty geometry", "polygon cut"): a unit name where it
+  takes a code (`unit: 9001`), a bare `areaUnit` string, and an unwrapped
+  overlay operand. Other URLs pass through unchecked.
 - `tools.arcgis_status()` reports the portal, user and token expiry.
 
 The full response is carried only in `structuredContent`. The extension's text
@@ -680,7 +702,7 @@ directories intact.
 `ARCPI_ARTIFACTS_DIR` moves generated files to another folder of the project
 (default `artifacts`): `ARCPI_ARTIFACTS_DIR=results ./arcpi`. It must be one plain
 folder name, not a path, not a dot folder (`.git`, `.pi`, `.arcgis`) and not
-one of the project's own folders (`arcgis-rest`, `mappi`, `test`, `tasks`, `video`), because
+one of the project's own folders (`arcgis-rest`, `mappi`, `test`, `tasks`, `video`, `eval`), because
 startup deletes old files there; the launcher and the extension both refuse
 anything else. The launcher also deletes only in a folder it created: it
 creates the folder with an empty `.arcpi-artifacts` marker (kept by cleanup), and
@@ -847,4 +869,28 @@ cleanup of `artifacts/` without following symlinks. `test/mappi.test.ts` checks
 MCP and the page channel with fake browser connections, shared authentication
 and redaction, named and unnamed layer cleanup, artifact confinement and byte
 ranges, and Host/Origin and bearer checks. All tests use temporary fixtures;
-none calls an LLM or a live portal.
+none calls an LLM or a live portal. `test/arcgis.test.ts` also covers the
+request contract (unknown names refused before sending, GP inputs, field
+diagnosis, geometry value shapes), compiles every `js` block of the skills as JavaScript, and checks
+each reference's parameter table against `catalog.ts`.
+
+### Live eval
+
+`eval/` measures the skills with real model and portal calls, so it is run by
+hand and costs money (about $0.05 per task run; one task bills a service-area
+solve):
+
+```bash
+node eval/run.ts truth                    # expected answers, computed without a model
+node eval/run.ts run <label> --reps 3     # each task through ./arcpi -p
+node eval/run.ts report <label> [<label>] # writes eval/RESULTS.md
+```
+
+Answers are checked against the truth; tokens, turns, scripts and REST calls
+come from pi's session files under `eval/runs/` (ignored). The 2026-10-14 runs
+(`baseline` = before the request contract and the geoprocessing and imagery
+references, `contract` = after; Bedrock Claude Sonnet 4.6) were both 24/24
+correct; cost fell from $1.65 to $1.36 and failed scripts from 4 to 0, mostly on
+the geoprocessing task. Replaying the baseline calls, the contract would have
+refused one invented parameter (`inSR` on image `identify`). These tasks are
+too easy to show a correctness difference.

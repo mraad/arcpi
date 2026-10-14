@@ -1,6 +1,6 @@
 ---
 name: arcgis-rest
-description: Call ArcGIS REST endpoints directly from a codemode script as the signed-in portal user - search the portal and read items, inspect and query feature layers (attribute, spatial, statistics, paging, GeoJSON), geocode one or many addresses, reverse geocode, autocomplete, solve routes and driving directions, build drive-time areas, closest facility and OD cost matrices, snap GPS points to roads, find places, get elevation, and pull demographics with GeoEnrichment. Use for any ArcGIS data or analysis task - find a layer, look up an item, count or list features, features within or near something, geocode, directions from A to B - even when the user does not say REST.
+description: Call ArcGIS REST endpoints directly from a codemode script as the signed-in portal user - search the portal and read items, inspect and query feature layers (attribute, spatial, statistics, paging, GeoJSON), geocode one or many addresses, reverse geocode, autocomplete, solve routes and driving directions, build drive-time areas, closest facility and OD cost matrices, snap GPS points to roads, find places, get elevation, and pull demographics with GeoEnrichment, run geoprocessing tasks and jobs, read image services (pixel values, land cover classes, raster statistics, image export), and create, share, update or delete hosted feature layers. Use for any ArcGIS data or analysis task - find a layer, look up an item, count or list features, features within or near something, geocode, directions from A to B - even when the user does not say REST.
 metadata:
   version: "0.3.4"
 ---
@@ -42,6 +42,14 @@ return found.results.map((item) => ({ id: item.id, title: item.title, url: item.
   binary responses (PDF reports), which cannot be returned.
   The paging flag is preserved from JSON or GeoJSON
   `properties.exceededTransferLimit`; `true` means more pages are needed.
+- The parameter names are checked before sending for the operations these
+  references cover (layer queries, geocoding, route solve, geometry, image
+  services, portal search, GeoEnrichment, publishing): an undocumented name fails with
+  `"x" is not a parameter of ...` and a suggestion, because ArcGIS would
+  silently ignore it. GP task runs are checked against the task's own inputs.
+  A layer query that fails names the fields the layer does not have. Geometry
+  operations refuse unit names where a code goes, a bare `areaUnit`, and an
+  unwrapped operand. Fix what the error names; letter case does not matter.
 - `note` is set when the request went out **without** the token: the host is
   not one of the portal's, or it is a public utility service that refuses
   tokens. Public data still answers; private data then fails with 499/403.
@@ -102,7 +110,7 @@ GeoJSON file under `artifacts/geometry/` and leaves a reference in their place:
   Token endpoints (`/oauth2/`, `generateToken`) are not callable.
 - **Read first, write only when asked.** Endpoints that change things
   (`addFeatures`, `updateFeatures`, `deleteFeatures`, `applyEdits`, `addItem`,
-  `update`, `delete`, `share`, `publish`) are single explicit calls the user
+  `createService`, `addToDefinition`, `update`, `delete`, `shareItems`, `publish`) are single explicit calls the user
   asked for, after checking current state. Script calls are real and are not
   undone when the script fails. Do not retry a write whose outcome is unknown
   without checking whether it happened.
@@ -166,10 +174,14 @@ Portal paths are relative to the portal. Service URLs come from an item's
 | Places near a point or in an extent | Places service | `references/places-elevation.md` |
 | Elevation at points | Terrain image service | `references/places-elevation.md` |
 | Demographics, standard geographies, reports | GeoEnrichment service | `references/geoenrichment.md` |
+| Run a geoprocessing task, poll a job, read its results | `<gp>/<task>/execute` , `…/submitJob` , `…/jobs/<jobId>` | `references/geoprocessing.md` |
+| Pixel values, class names, raster statistics, export an image | `<image>/identify` , `…/computeStatisticsHistograms` , `…/exportImage` | `references/imagery.md` |
+| Create a hosted feature layer from data, share, update, delete items | `<content>/createService` , `…/shareItems` , `…/items/<id>/update` | `references/publishing.md` |
 
 Read the reference for a domain before your first call in it. Parameter names
-there are the REST names; unknown parameters are silently ignored by most
-services, so a misspelt name looks like a default result.
+there are the REST names. Services silently ignore unknown parameters, so the
+tool refuses them for the operations above; for any other endpoint a misspelt
+name still looks like a default result.
 
 ### Helper services
 

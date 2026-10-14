@@ -11,3 +11,5 @@ outputs/
 .resume
 resume.sh
 resume.txt
+# Live eval runs and truth (eval/run.ts).
+/eval/runs/

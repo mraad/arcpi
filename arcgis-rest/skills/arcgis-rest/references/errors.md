@@ -44,15 +44,21 @@ last `refresh_error`.
 | 400 "Cannot perform query. Invalid query parameters." | Bad `where` (unknown field, unquoted string, wrong date syntax), unknown `outFields`, or malformed `geometry` | Read the layer's `fields`; quote strings with single quotes; set `geometryType` and `inSR` with `geometry` |
 | 400 "Unable to complete operation." | The service could not parse an input (routing locations, travel mode, batch addresses) | See the reference for that endpoint |
 | 400 "Invalid URL" / 404 | Wrong path or layer ID; an operation on the wrong service | Read the parent URL first: a service lists its layers and operations |
-| 400 "Invalid or missing input parameters." | A required parameter is missing or misnamed (names are case-sensitive) | Compare with the reference |
+| 400 "Invalid or missing input parameters." | A required parameter is missing or misnamed | Compare with the reference |
+| "\"x\" is not a parameter of ...; did you mean ...?" (request not sent) | A name the operation does not document: misspelt or invented | Use the suggested name; the reference lists the parameters. Do not drop the check by switching endpoints |
+| "\"x\" is not an input of task ..." / "is missing required input" (request not sent) | GP input names come from the task, not from memory | Read `<gp>/<task>` and use its `parameters[].name` (`references/geoprocessing.md`) |
+| "\"unit\" takes a unit code ..." / "\"areaUnit\" takes an object" / "takes { geometryType, geometry }" (request not sent) | A value shape the geometry service would reject with a misleading message ("empty geometry", "polygon cut") | Use the shape the error gives (`references/geometry.md`) |
+| "Not fields of this layer: ..." after a query error | A field name in `outFields`, `orderByFields`, `groupByFieldsForStatistics` or `outStatistics` | Use the names the message lists; `where` is not checked |
 | "The response ... is application/pdf ...: pass save_to" | Binary response | Add `save_to: "artifacts/<name>"` |
 | "Do not pass a token" / "Token endpoints are not callable" | A `token` parameter or an OAuth endpoint | Remove it; authentication is automatic |
 | HTTP 429 or 503 | Rate limit or busy service | Wait and retry once; reduce parallel calls |
 | "The operation was aborted due to timeout" | No answer within 120 seconds | Narrow the request (fewer fields, a spatial or attribute filter, smaller pages) |
 
-Most services ignore parameters they do not know. A misspelt name
-(`outfields`, `returnGeometery`) therefore gives a default-looking result, not
-an error. When a filter seems to have no effect, check the spelling first.
+Services ignore parameters they do not know, and a misspelt name would give
+a default-looking result. For the operations in these references the tool
+refuses such names before sending (letter case does not matter: `outfields`
+is `outFields`). For other endpoints it cannot check: when a parameter seems to
+have no effect there, check its spelling against Esri's documentation.
 
 ## Empty results
 

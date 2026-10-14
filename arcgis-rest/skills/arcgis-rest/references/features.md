@@ -37,6 +37,7 @@ const sample = await rest(`${layer}/query`, { where: "1=1", outFields: "*", retu
 | `returnDistinctValues` | `true` with `outFields` and `returnGeometry: false` lists distinct values. |
 | `outStatistics` | Array of `{ statisticType, onStatisticField, outStatisticFieldName }`; types `count`, `sum`, `min`, `max`, `avg`, `stddev`, `var`. |
 | `groupByFieldsForStatistics` | Fields to group the statistics by. |
+| `having` | Filter the groups by an aggregate: `COUNT(NAME) >= 20`, `SUM(POP) > 1000000`. ArcGIS Online hosted layers read `having` and ignore the documented `havingClause`; ArcGIS Server layers accept both. Only when the layer reports `advancedQueryCapabilities.supportsHavingClause`. |
 | `geometry`, `geometryType`, `inSR`, `spatialRel` | Spatial filter, see below. |
 | `distance`, `units` | Buffer around the filter geometry. |
 | `geometryPrecision`, `maxAllowableOffset` | Thin the returned geometry (decimal places; generalization tolerance in `outSR` units). |

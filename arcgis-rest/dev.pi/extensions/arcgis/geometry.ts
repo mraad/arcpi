@@ -9,7 +9,7 @@ import { basename, dirname, join, relative, resolve, sep } from "node:path";
 type Ring = number[][];
 
 // The project's own folders, which ARCPI_ARTIFACTS_DIR may not name (the launcher refuses the same).
-const PROJECT_DIRS = new Set(["arcgis-rest", "mappi", "test", "tasks", "video"]);
+const PROJECT_DIRS = new Set(["arcgis-rest", "mappi", "test", "tasks", "video", "eval"]);
 const FOLDER_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 /**

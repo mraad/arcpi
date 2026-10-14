@@ -40,6 +40,10 @@ native `ls`, `find`, `grep` and disables `bash`, `powershell`.
     moves the shapes of a response to `artifacts/geometry/*.geojson` and leaves
     references; `resolveReferences` turns references in parameters back into
     Esri JSON shapes.
+  - `dev.pi/extensions/arcgis/catalog.ts`: the request contract. Documented
+    parameter names per operation (matched by URL suffix), GP input checks
+    against a task's description, field diagnosis for failed layer queries, and
+    geometry value shapes (unit codes, `areaUnit`, wrapped operands).
   - `dev.pi/extensions/arcgis/mcp.ts`: reads `mcp.json` for pi (pi reads neither
     it nor `plugin.json`); skips and reports a version mismatch or a transport
     other than `streamable-http`.
@@ -48,7 +52,11 @@ native `ls`, `find`, `grep` and disables `bash`, `powershell`.
     servers with pi.
 - `.pi/APPEND_SYSTEM.md`: local rules for pi (REST through codemode, maps,
   adapting SDK examples found elsewhere).
-- `test/arcgis.test.ts`: session and request code against a fake portal on loopback.
+- `test/arcgis.test.ts`: session and request code against a fake portal on loopback;
+  also compiles every skill ```js block and checks reference parameter tables
+  against `catalog.ts`.
+- `eval/`: live, manual eval (`node eval/run.ts run <label>`, `report <labels>`):
+  real model and portal calls, never run by `node --test`. `eval/runs/` is ignored.
 - `test/launcher.test.ts`: launcher with a fake pi in temporary workspaces.
 - `test/mappi.test.ts`: mappi over HTTP with a fake page (MCP, channel, `/artifacts`,
   `/config`, bearer, Host/Origin).
@@ -151,7 +159,9 @@ Token rules, all in `arcgis.ts`:
 - Redirects are followed manually, and every hop gets the same checks as the
   first URL: trust before the token is attached, and refusal of token endpoints.
   `token` params are refused, including redirect URLs, and token strings are
-  redacted from responses. Internal OAuth and trust discovery refuse redirects.
+  redacted from responses: the session's tokens, and every `token=` /
+  `access_token=` URL value (`TOKEN_IN_URL`), since portal errors can quote a
+  token the server minted itself. Internal OAuth and trust discovery refuse redirects.
 - A trusted host that answers 498 to a just-renewed token is retried
   anonymously; if that works it is remembered (`tokenRefusedBy`) and gets no
   token afterwards. Never the portal host: anonymous portal answers are
@@ -203,6 +213,13 @@ relative to the invoking `$PWD`, so it must stay above the `cd -- "$project_dir"
   travels by reference" in `SKILL.md`, `references/geometry.md`, the schema
   descriptions in `index.ts`, README "Codemode", and the rule in
   `.pi/APPEND_SYSTEM.md`.
+- Adding an operation to `catalog.ts`, or a name to one of its lists → only
+  names from Esri's REST documentation, or ones checked live (say so in a
+  comment); the reference's parameter table; the drift test's placeholders if
+  the reference uses a new `<endpoint>`.
+- Changing a contract error message ("is not a parameter of", "is not an input
+  of", "Not fields of this layer", "takes ...") → `references/errors.md`,
+  `.pi/APPEND_SYSTEM.md`, and the `REJECTION` pattern in `eval/run.ts`.
 - Changing token, trust, or session behavior → `test/arcgis.test.ts`, README
   "Authentication and token refresh", and "Token rules" above.
 - Changing an error message that the skill quotes ("Not signed in", "The token
@@ -274,7 +291,7 @@ Startup, including sign-in commands, permanently deletes regular files in `artif
 older than `ARCPI_ARTIFACTS_MAX_AGE_DAYS` whole days (default 1) by modification
 time; an invalid value exits before deleting. `ARCPI_ARTIFACTS_DIR` (default
 `artifacts`) names that folder: one plain folder of the project, never a dot folder
-or `arcgis-rest`, `mappi`, `test`, `tasks`, `video`. `arcpi` and `configFromEnv` in `arcgis.ts`
+or `arcgis-rest`, `mappi`, `test`, `tasks`, `video`, `eval`. `arcpi` and `configFromEnv` in `arcgis.ts`
 check the same rule. The launcher creates the folder with a `.arcpi-artifacts`
 marker, never deletes it, and refuses an existing unmarked folder other than the
 default `artifacts/` (adopted). A non-default folder adds one `--append-system-prompt` line

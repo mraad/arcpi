@@ -12,7 +12,7 @@ pi_bin="${PI_BIN:-pi}"
 # Generated files go to one folder of the project; arcgis.ts applies the same rule. Never a dot
 # folder or one of the project's own: startup deletes old files there.
 artifacts_dir="${ARCPI_ARTIFACTS_DIR:-artifacts}"
-[[ "$artifacts_dir" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && ! "$artifacts_dir" =~ ^(arcgis-rest|mappi|test|tasks|video)$ ]] || { echo "ARCPI_ARTIFACTS_DIR must be one folder name in the project, not a dot folder or arcgis-rest, mappi, test, tasks or video (got '$artifacts_dir')." >&2; exit 1; }
+[[ "$artifacts_dir" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && ! "$artifacts_dir" =~ ^(arcgis-rest|mappi|test|tasks|video|eval)$ ]] || { echo "ARCPI_ARTIFACTS_DIR must be one folder name in the project, not a dot folder or arcgis-rest, mappi, test, tasks, video or eval (got '$artifacts_dir')." >&2; exit 1; }
 export ARCPI_ARTIFACTS_DIR="$artifacts_dir"
 # Startup deletes artifacts older than this many whole days; at most five digits, so the
 # hours below cannot overflow Bash arithmetic and wrap to a shorter age.

@@ -10,7 +10,8 @@ How to work:
 - Before the first call in a domain, read its skill and every reference the
   task needs in one script (`Promise.all` of `tools.read`), not one per turn:
   arcgis-rest and its references (portal, features, geocoding, routing,
-  geometry, places and elevation, GeoEnrichment, chaining, errors) for a
+  geometry, places and elevation, GeoEnrichment, geoprocessing, imagery,
+  publishing, chaining, errors) for a
   portal or service; local-gis for local files or an ArcGIS Pro project; mappi
   for the live map; arcgis-map for a standalone HTML map.
 - Chain dependent calls in one script and await independent ones together
@@ -43,6 +44,10 @@ Rules:
   retrying a write whose outcome is uncertain.
 - Check `exceededTransferLimit` and paging fields before calling a result
   complete; a short page alone does not prove it.
+- A request refused with "is not a parameter of", "is not an input of" or
+  "takes ..." was not sent; "Not fields of this layer" follows a query that
+  was sent and failed. Either way, fix the name or value the error gives (GP
+  inputs come from the task's description), never guess another.
 
 Whenever the user asks to create, show or update a geographic map, follow
 mappi: drive the already-open map page from codemode instead of writing an HTML

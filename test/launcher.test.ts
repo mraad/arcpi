@@ -145,7 +145,7 @@ process.exit(Number(process.env.TEST_EXIT || 0));
       '--append-system-prompt', 'Generated files go in results/: read every artifacts/ in the skills and tool descriptions as results/.',
     ]);
     assert.equal(JSON.parse(custom.stdout).artifactsDir, 'results', 'pi and the extension see the folder name');
-    for (const name of ['.git', '.arcgis', 'test', 'arcgis-rest', 'mappi', 'tasks', 'video', 'a/b', '..', '/tmp']) {
+    for (const name of ['.git', '.arcgis', 'test', 'arcgis-rest', 'mappi', 'tasks', 'video', 'eval', 'a/b', '..', '/tmp']) {
       const refused = run([], { ARCPI_ARTIFACTS_DIR: name });
       assert.notEqual(refused.status, 0, `${name} is refused`);
       assert.ok(refused.stderr.includes('ARCPI_ARTIFACTS_DIR'));

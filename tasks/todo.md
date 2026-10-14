@@ -1,3 +1,34 @@
+# Request contract and code-mode skills (2026-10-14, branch feat/request-contract)
+
+Plan: ~/.claude/plans/inspect-the-added-arcpi-hidden-breeze.md. Goal: fewer
+hallucinated REST calls. Scripts stay JavaScript (QuickJS); repo code TypeScript.
+
+- [x] 1. `eval/`: tasks, runner, scorer; baseline 24/24 correct, $1.65 (Bedrock Sonnet 4.6: Anthropic login out of usage, Sonnet 5.5 not enabled on Bedrock)
+- [x] 2. `catalog.ts` from Esri docs pages (Enterprise + World geocoder/routing) plus live-honored names (`having`, `returnQueryGeometry`, `featureEncoding`); enforced in `request()`; tests. Enum checks dropped: services already reject bad values loudly (checked live)
+- [x] 3. GP inputs checked against the task (cached per profile); layer fields diagnosed only after a failed query (no extra request on success)
+- [x] 4. Drift test: js blocks compile, reference parameter tables match the catalog (mutation-checked). Example-literal parsing skipped: tables cover it
+- [x] 5. `references/geoprocessing.md`, every block run live (sync, async with resume). Follow-up: a wait for job polling (scripts have no timers)
+- [x] 6a. `references/imagery.md`, every block run live
+- [x] 6b. `references/publishing.md` (user approved test writes): `addItem` with `text` makes a CSV item without a
+      file, so `analyze`/`publish` fail; documented route is `createService` → `addToDefinition` → `addFeatures`,
+      verified live with `shareItems`, `update`, `delete` (test items deleted, confirmed gone). The recipe
+      itself was not re-run (auto-mode blocked a create without cleanup); its calls match the verified flow
+- [x] Security: a portal `analyze` error quoted a server-minted token in a URL and redaction missed it
+      (only the session's own tokens were redacted). Every `token=`/`access_token=` URL value is now redacted
+- [x] 7. Eval after (`eval/RESULTS.md`, 3 reps each): both 24/24 correct; cost $1.65 → $1.36,
+      failed scripts 4 → 0, REST calls 72 → 63, wall 426 → 371 s; gains are in the new domains
+      (gp median 150k → 93k tokens, 7 → 5 turns). The contract refused nothing live: replaying the
+      baseline calls, it would have refused 6 (`inSR` on image identify, one run). The tasks are too
+      easy to show a correctness change; harder tasks are needed for that. Docker smoke passed (44 tests, extension, settings, mcp.json)
+- [x] GP and geometry gap review. Geometry: three wire traps (unit codes, `areaUnit` object, wrapped
+      operand) were already in the reference, but the service
+      answers them with misleading errors ("empty geometry"), checked live, so the tool now refuses them
+      (`geometryValueProblem`). GP: added discovery (16 GPServer `helperServices` on the org, portal search),
+      the 120 s request cap for long `execute` runs, and `Promise.allSettled` over several outputs.
+      Not taken: `findTransformations` (no catalog entry yet)
+- [ ] 8. Gated: utility network, linear referencing, knowledge graph (needs a verification instance)
+- [ ] 9. Later: OpenShell isolation (`docs/openshell.md`)
+
 # Skills review and optimization (2026-10-08, branch refactor/skills-review)
 
 Evidence: the recorded demo run spent 3 min 17 s reasoning (10,900 characters),
