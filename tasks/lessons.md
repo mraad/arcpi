@@ -7,3 +7,5 @@
 - `./arcpi -p` hung for 10 minutes on an open stdin. Rule: run non-interactive pi with `< /dev/null`.
 - A PR watcher polled check-runs while CodeRabbit reports a commit status, so it never finished. Rule: confirm which API carries a check (`commits/<sha>/status` vs `check-runs`) before waiting on it.
 - VHS `Wait` on the prompt line hung after pi was killed: the prompt landed on pi's leftover footer. Rule: end a tape on a unique marker (`Wait+Screen`) printed after the program stops, and dry-test the ending before a billed run.
+- Planned a cross-host benchmark and called codemode scripts TypeScript when the goal was arcpi skills. Rule: scope a plan to the project the user names, and name languages by runtime: codemode scripts are JavaScript (QuickJS), repo code is TypeScript.
+- Redaction replaced only the session's own token strings; a portal error quoted a token the server minted for its own fetch. Rule: redact credential patterns (`token=` in URLs), not just known values, and treat every live error text as model-visible.

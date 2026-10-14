@@ -15,6 +15,7 @@ import { accessToken, configFromEnv, login, logout, mapAuth, readSession, reques
 import type { Config, Session } from '../arcgis-rest/dev.pi/extensions/arcgis/arcgis.ts';
 import { pluginMcpServers } from '../arcgis-rest/dev.pi/extensions/arcgis/mcp.ts';
 import { externalize } from '../arcgis-rest/dev.pi/extensions/arcgis/geometry.ts';
+import { gpInputProblem, operationFor, parameterProblem } from '../arcgis-rest/dev.pi/extensions/arcgis/catalog.ts';
 
 const plugin = join(import.meta.dirname, '../arcgis-rest');
 const temporary = realpathSync(mkdtempSync(join(tmpdir(), 'arcgis-rest-')));
@@ -108,12 +109,25 @@ const serve = (name: string, host: string) => new Promise<string>((listening) =>
     if (path === '/rest/failure') return json({ error: { code: 400, message: 'Invalid query', details: ['where is malformed'] } });
     if (path === '/rest/report') return response.writeHead(200, { 'Content-Type': 'application/pdf' }).end(Buffer.from([0x25, 0x50, 0x44, 0x46, 0xff]));
     if (path === '/rest/leak') return json({ echoed: token });
+    // An error that quotes a URL with a token the server minted itself.
+    if (path === '/rest/minted') return json({ error: { code: 400, message: 'Error retrieving file from https://x/data?token=server-minted.1&v=2 (500)' } });
     if (path === '/rest/empty') return response.writeHead(200).end();
     if (path === '/rest/padded') return response.writeHead(200, { 'Content-Type': 'application/json' }).end(' '.repeat(100) + JSON.stringify(shapes['/rest/polygons']));
     if (path === '/rest/large') return json({ rows: 'x'.repeat(500_000) });
     if (path === '/rest/page') return json({ features: [{ attributes: { id: 1 } }], exceededTransferLimit: true });
     if (path === '/rest/geo-page') return json({ type: 'FeatureCollection', features: [], properties: { exceededTransferLimit: form.get('more') === 'true' } });
     if (shapes[path]) return json(shapes[path]);
+    // A layer and a GP task, for the request contract.
+    if (path === '/rest/services/L/FeatureServer/0') return json({ fields: [{ name: 'NAME' }, { name: 'POPULATION' }] });
+    if (path === '/rest/services/L/FeatureServer/0/query') return json(form.get('outFields')?.includes('POPULATON')
+      ? { error: { code: 400, message: 'Cannot perform query. Invalid query parameters.', details: ["'outFields' parameter is invalid"] } }
+      : { features: [] });
+    if (path === '/rest/services/G/GPServer/T') return json({ name: 'T', parameters: [
+      { name: 'Query', direction: 'esriGPParameterDirectionInput', parameterType: 'esriGPParameterTypeRequired', defaultValue: null },
+      { name: 'ROAD', direction: 'esriGPParameterDirectionInput', parameterType: 'esriGPParameterTypeRequired', defaultValue: 'ROAD_Erase' },
+      { name: 'Output', direction: 'esriGPParameterDirectionOutput', parameterType: 'esriGPParameterTypeRequired', defaultValue: null },
+    ] });
+    if (path === '/rest/services/G/GPServer/T/execute') return json({ results: [] });
     // A public utility service: it answers anonymous callers and rejects every token.
     if (path === '/rest/public') return json(token ? { error: { code: 498, message: 'Invalid Token' } } : { areas: [1] });
     // Refuses our tokens but is not public either.
@@ -226,6 +240,51 @@ test('requests carry the token, REST parameters and f=json to the portal', async
   assert.deepEqual(portal.seen.slice(2).map((call) => call.path), ['/rest/to-token'], 'a redirect to a token endpoint is not followed');
   await assert.rejects(request(cfg, { url: '/rest/token-param' }), /Do not pass a token/);
   assert.equal(portal.seen.at(-1)!.path, '/rest/token-param', 'a token in a redirect URL is refused');
+});
+
+test('documented operations refuse unknown parameter names before sending', async () => {
+  const cfg = project();
+  signedIn(cfg);
+  const layer = '/rest/services/L/FeatureServer/0/query';
+  await assert.rejects(request(cfg, { url: layer, params: { where: '1=1', outFeilds: 'NAME' } }),
+    /"outFeilds" is not a parameter of layer query\. Did you mean "outFields"\?.*not sent/);
+  await assert.rejects(request(cfg, { url: `${layer}?outFeilds=NAME` }), /"outFeilds" is not a parameter/, 'URL parameters count too');
+  await assert.rejects(request(cfg, { url: layer, params: { token: 'mine' } }), /Do not pass a token/, 'the token rule keeps its message');
+  assert.equal(portal.seen.length, 0, 'a refused request is never sent');
+  // ArcGIS compares names case-insensitively, and so does the contract; f is always accepted.
+  await request(cfg, { url: layer, params: { WHERE: '1=1', outfields: 'NAME', f: 'json' } });
+  await request(cfg, { url: '/rest/echo', params: { anything: 1 } });
+  assert.equal(portal.seen.length, 2, 'valid names and uncataloged URLs pass through');
+  for (const [url, name] of [
+    [`${portalUrl}/rest/services/World/GeocodeServer/findAddressCandidates`, 'singleline'],
+    [`${portalUrl}/rest/services/Utilities/Geometry/GeometryServer/areasAndLengths`, 'calculationType'],
+    [`${portalUrl}/rest/services/Elev/ImageServer/getSamples`, 'returnFirstValueOnly'],
+    [`${portalUrl}/sharing/rest/search`, 'sortField'],
+  ]) {
+    await request(cfg, { url, params: { [name]: 'x' } });
+    await assert.rejects(request(cfg, { url, params: { [`${name}x`]: 'x' } }), /is not a parameter of/, url);
+  }
+});
+
+test('GP task runs are checked against the task inputs, layer query failures name bad fields', async () => {
+  const cfg = project();
+  signedIn(cfg);
+  const execute = '/rest/services/G/GPServer/T/execute';
+  await assert.rejects(request(cfg, { url: execute, params: { query: 'x', Raod: 'y' } }),
+    /"Raod" is not an input of task "T"\. Did you mean "ROAD"\?.*Its inputs: Query, ROAD\./);
+  await assert.rejects(request(cfg, { url: execute, params: { ROAD: 'y' } }), /missing required input "Query"/, 'a required input without a default');
+  await request(cfg, { url: execute, params: { Query: 'x', 'env:outSR': 4326, returnZ: false } });
+  await request(cfg, { url: '/rest/services/G/GPServer/T/submitJob', params: { Query: 'x' } });
+  assert.equal(gpInputProblem({ name: 'odd' }, { anything: 1 }), undefined, 'a description without parameters checks nothing');
+  assert.deepEqual(portal.seen.map((call) => call.path), [
+    '/rest/services/G/GPServer/T', '/rest/services/G/GPServer/T/execute', '/rest/services/G/GPServer/T/submitJob',
+  ], 'the task is described once; refused runs are never sent');
+  portal.seen.length = 0;
+  await assert.rejects(request(cfg, { url: '/rest/services/L/FeatureServer/0/query', params: { outFields: 'NAME,POPULATON', orderByFields: 'n DESC',
+    outStatistics: [{ statisticType: 'count', onStatisticField: 'NAME', outStatisticFieldName: 'n' }] } }),
+  /ArcGIS error 400 .*Not fields of this layer: "POPULATON" \(did you mean "POPULATION"\?\)\. Fields: NAME, POPULATION\./);
+  assert.deepEqual(portal.seen.map((call) => call.path), ['/rest/services/L/FeatureServer/0/query', '/rest/services/L/FeatureServer/0'],
+    'the layer is read only after the query failed');
 });
 
 test('internal OAuth and trust requests never forward credentials through redirects', async () => {
@@ -628,7 +687,7 @@ test('the artifacts folder is configurable, but only as one plain folder of the 
   const base = { ARCGIS_PORTAL_URL: 'https://portal.example.com', ARCGIS_CLIENT_ID: 'client' };
   assert.equal(configFromEnv(base, '/work/arcpi').artifactsDir, '/work/arcpi/artifacts');
   assert.equal(configFromEnv({ ...base, ARCPI_ARTIFACTS_DIR: 'results' }, '/work/arcpi').artifactsDir, '/work/arcpi/results');
-  for (const name of ['.git', '.arcgis', 'test', 'arcgis-rest', 'mappi', 'tasks', 'video', 'a/b', '..', '/tmp']) {
+  for (const name of ['.git', '.arcgis', 'test', 'arcgis-rest', 'mappi', 'tasks', 'video', 'eval', 'a/b', '..', '/tmp']) {
     assert.throws(() => configFromEnv({ ...base, ARCPI_ARTIFACTS_DIR: name }, '/work/arcpi'), /ARCPI_ARTIFACTS_DIR/, name);
   }
 });
@@ -661,6 +720,8 @@ test('ArcGIS error bodies throw, tokens are redacted and binary bodies need save
   signedIn(cfg);
   await assert.rejects(request(cfg, { url: '/rest/failure' }), /ArcGIS error 400 from 127\.0\.0\.1:\d+\/rest\/failure: Invalid query \(where is malformed\)$/);
   assert.deepEqual((await request(cfg, { url: '/rest/leak' })).data, { echoed: '[redacted]' });
+  await assert.rejects(request(cfg, { url: '/rest/minted' }), (error: Error) => !error.message.includes('server-minted') && error.message.includes('data?token=[redacted]&v=2'),
+    'a token the server minted, quoted in a URL, is redacted too');
   assert.equal((await request(cfg, { url: '/rest/empty' })).data, null, 'an empty body is not an error');
   await assert.rejects(request(cfg, { url: '/rest/report' }), /application\/pdf \(5 bytes\): pass save_to/);
   const saved = await request(cfg, { url: '/rest/report', save_to: 'artifacts/reports/report.pdf' });
@@ -673,6 +734,47 @@ test('ArcGIS error bodies throw, tokens are redacted and binary bodies need save
     await assert.rejects(request(cfg, { url: '/rest/echo', save_to: path }), /under artifacts\//);
   }
   assert.ok(!existsSync(join(dirname(cfg.artifactsDir), '../escape.json')));
+});
+
+test('skill scripts compile as JavaScript and their parameter tables match the request contract', () => {
+  const skills = join(plugin, 'skills');
+  const files = readdirSync(skills, { recursive: true, encoding: 'utf8' }).filter((name) => name.endsWith('.md'));
+  const AsyncFunction = (async () => {}).constructor as new (body: string) => unknown;
+  // Endpoint placeholders as the references write them, turned into URLs the contract recognizes.
+  const placeholders: Record<string, string> = {
+    '<layer>': '/s/FeatureServer/0', '<geocoder>': '/s/GeocodeServer', '<geometry>': '/s/GeometryServer',
+    '<route>': '/s/NAServer/Route', '<ge>': '/s/GeoEnrichmentServer', '<image>': '/s/ImageServer', '<content>': '/sharing/rest/content/users/u',
+  };
+  const endpointIn = (text: string) => {
+    const match = text.match(/`(<[a-zA-Z]+>|\/sharing)(\/[^`\s]*)?`/);
+    if (!match) return undefined;
+    const path = match[1] === '/sharing' ? `/sharing${match[2] ?? ''}` : `${placeholders[match[1]] ?? '/unknown'}${match[2] ?? ''}`;
+    return new URL(`https://example.com${path}`);
+  };
+  let checked = 0;
+  for (const file of files) {
+    const text = readFileSync(join(skills, file), 'utf8');
+    // Codemode scripts are JavaScript: TypeScript syntax or a broken example fails here.
+    for (const [, code] of text.matchAll(/```js\n([\s\S]*?)```/g)) {
+      assert.doesNotThrow(() => new AsyncFunction(code), `${file}: a js block does not compile:\n${code}`);
+    }
+    let endpoint: URL | undefined;
+    for (const line of text.split('\n')) {
+      if (/^## /.test(line)) endpoint = endpointIn(line);
+      else if (/^### /.test(line)) endpoint = endpointIn(line) ?? endpoint;
+      if (!line.startsWith('| `')) continue;
+      const cells = line.split('|').slice(1, -1);
+      // A row may name its own endpoint (`<geometry>/union`) and list that operation's parameters next to it.
+      const own = endpointIn(cells[0]);
+      const target = own ?? endpoint;
+      if (!target || !operationFor(target)) continue;
+      const names = [...(own ? cells[1] : cells[0]).matchAll(/`([A-Za-z][A-Za-z0-9]*)`/g)].map((match) => match[1]);
+      const problem = parameterProblem(target, names);
+      assert.equal(problem, undefined, `${file}: ${line}`);
+      checked += names.length;
+    }
+  }
+  assert.ok(checked > 80, `parameter tables were found (${checked} names)`);
 });
 
 test('the plugin follows the Agent Plugins layout', () => {

@@ -8,6 +8,7 @@ import { createServer } from "node:http";
 import type { Server } from "node:http";
 import { basename, dirname, join, resolve } from "node:path";
 import { setTimeout as pause } from "node:timers/promises";
+import { fieldProblem, gpInputProblem, isGpRun, isLayerQuery, parameterProblem } from "./catalog.ts";
 import { artifactPath, artifactsFolder, externalize, resolveReferences } from "./geometry.ts";
 import type { GeometryFile } from "./geometry.ts";
 
@@ -65,6 +66,8 @@ interface Profile {
   trustRetryAt?: number;
   /** Trusted hosts that turned down even a newly issued token; they are called without one. */
   tokenRefusedBy?: Set<string>;
+  /** GP task descriptions by task URL, read once to check the inputs of its runs. */
+  gpTasks?: Map<string, Promise<any>>;
 }
 
 const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
@@ -76,6 +79,8 @@ const REQUEST_TIMEOUT_MS = 120_000;
 const MAX_REDIRECTS = 5;
 // Sign-in and refresh belong to this module; a script reaching these would receive raw tokens.
 const TOKEN_ENDPOINT = /\/(oauth2|tokens|generateToken)(?=[/;]|$)/i;
+/** A token in a URL query string, up to the next delimiter of a URL inside text or JSON. */
+const TOKEN_IN_URL = /([?&](?:token|access_token)=)[^&\s"'<>)\\]+/gi;
 
 const profiles = new Map<string, Profile>();
 
@@ -508,6 +513,18 @@ export async function request(cfg: Config, args: RequestArgs, signal?: AbortSign
   const url = URL.parse(args.url.startsWith("/") ? cfg.portal + args.url : args.url);
   if (!url) throw new Error(`Not a URL: ${args.url}. Use an absolute URL, or a path starting with / for the portal.`);
   if (!isHttp(url)) throw new Error(`Unsupported URL scheme: ${url.protocol}`);
+  // ArcGIS ignores parameter names it does not know, so a misspelt one would pass for a default result.
+  const problem = parameterProblem(url, [...Object.keys(args.params ?? {}), ...url.searchParams.keys()]);
+  if (problem) throw new Error(problem);
+  if (isGpRun(url)) {
+    const taskUrl = `${url.origin}${url.pathname.replace(/\/(execute|submitJob)$/i, "")}`;
+    const tasks = (profileOf(cfg).gpTasks ??= new Map());
+    // An unreadable task description skips the check (the run itself reports what is wrong) and is asked for again next time.
+    if (!tasks.has(taskUrl)) tasks.set(taskUrl, request(cfg, { url: taskUrl }, signal).then((reply) => reply.data, () => void tasks.delete(taskUrl)));
+    const task = await tasks.get(taskUrl);
+    const inputs = task && gpInputProblem(task, args.params ?? {});
+    if (inputs) throw new Error(inputs);
+  }
   const fields = new URLSearchParams();
   // Shapes are passed by reference; the real coordinates are filled in here, outside the script.
   for (const [key, value] of Object.entries(resolveReferences(args.params ?? {}, cfg.artifactsDir))) {
@@ -536,6 +553,9 @@ export async function request(cfg: Config, args: RequestArgs, signal?: AbortSign
         for (const secret of [token, readSession(cfg)?.refresh_token]) {
           if (secret) decoded = decoded.replaceAll(secret, "[redacted]");
         }
+        // Tokens the server minted itself also come back, in URLs inside error messages
+        // (analyze: "Error retrieving file from .../data?token=..."): redact every token= value.
+        decoded = decoded.replace(TOKEN_IN_URL, "$1[redacted]");
       }
       return decoded;
     };
@@ -636,7 +656,14 @@ export async function request(cfg: Config, args: RequestArgs, signal?: AbortSign
       ? { ...error, message: error.message ?? error.error_description }
       : { code: response.status, message: json.error_description ?? error, details: undefined };
     const more = Array.isArray(details) ? details.filter(Boolean).join("; ") : "";
-    throw new Error(`ArcGIS error ${code} from ${where}: ${message ?? "no message"}${more ? ` (${more})` : ""}${advice(code)}`);
+    // Services answer a wrong field name vaguely ("Failed to execute query"): name it from the layer's fields.
+    let diagnosis = "";
+    if (isLayerQuery(url) && code === 400) {
+      const layer = await request(cfg, { url: `${url.origin}${url.pathname.replace(/\/query$/i, "")}` }, signal).then((reply) => reply.data, () => undefined);
+      const fieldsWrong = layer && fieldProblem(layer, args.params ?? {});
+      if (fieldsWrong) diagnosis = ` ${fieldsWrong}`;
+    }
+    throw new Error(`ArcGIS error ${code} from ${where}: ${message ?? "no message"}${more ? ` (${more})` : ""}${diagnosis}${advice(code)}`);
   }
   if (!response.ok) {
     throw new Error(`HTTP ${response.status} from ${where}: ${text().slice(0, 300)}${advice(response.status)}`);
