@@ -19,7 +19,7 @@ hallucinated REST calls. Scripts stay JavaScript (QuickJS); repo code TypeScript
       failed scripts 4 → 0, REST calls 72 → 63, wall 426 → 371 s; gains are in the new domains
       (gp median 150k → 93k tokens, 7 → 5 turns). The contract refused nothing live: replaying the
       baseline calls, it would have refused 6 (`inSR` on image identify, one run). The tasks are too
-      easy to show a correctness change; harder tasks are needed for that. Docker smoke not run (no Docker here)
+      easy to show a correctness change; harder tasks are needed for that. Docker smoke passed (44 tests, extension, settings, mcp.json)
 - [ ] 8. Gated: utility network, linear referencing, knowledge graph (needs a verification instance)
 - [ ] 9. Later: OpenShell isolation (`docs/openshell.md`)
 
