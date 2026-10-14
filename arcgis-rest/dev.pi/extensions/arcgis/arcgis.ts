@@ -8,7 +8,7 @@ import { createServer } from "node:http";
 import type { Server } from "node:http";
 import { basename, dirname, join, resolve } from "node:path";
 import { setTimeout as pause } from "node:timers/promises";
-import { fieldProblem, gpInputProblem, isGpRun, isLayerQuery, parameterProblem } from "./catalog.ts";
+import { fieldProblem, geometryValueProblem, gpInputProblem, isGpRun, isLayerQuery, parameterProblem } from "./catalog.ts";
 import { artifactPath, artifactsFolder, externalize, resolveReferences } from "./geometry.ts";
 import type { GeometryFile } from "./geometry.ts";
 
@@ -514,7 +514,8 @@ export async function request(cfg: Config, args: RequestArgs, signal?: AbortSign
   if (!url) throw new Error(`Not a URL: ${args.url}. Use an absolute URL, or a path starting with / for the portal.`);
   if (!isHttp(url)) throw new Error(`Unsupported URL scheme: ${url.protocol}`);
   // ArcGIS ignores parameter names it does not know, so a misspelt one would pass for a default result.
-  const problem = parameterProblem(url, [...Object.keys(args.params ?? {}), ...url.searchParams.keys()]);
+  const problem = parameterProblem(url, [...Object.keys(args.params ?? {}), ...url.searchParams.keys()])
+    ?? geometryValueProblem(url, args.params ?? {});
   if (problem) throw new Error(problem);
   if (isGpRun(url)) {
     const taskUrl = `${url.origin}${url.pathname.replace(/\/(execute|submitJob)$/i, "")}`;

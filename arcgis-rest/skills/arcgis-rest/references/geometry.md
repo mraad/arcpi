@@ -17,6 +17,12 @@ result carries a `note` saying the token was not sent. That is expected here.
 Its answers do not say which spatial reference they are in: always pass `sr`
 (or `outSR`), which is also what the stored file is labelled with.
 
+Units are numeric codes (`9001` meters, `9036` kilometers, `9093` miles), not
+`esriSRUnit_*` names; `areaUnit` is an object; the second shape of
+`intersect`, `difference` and `distance` is wrapped as `{ geometryType,
+geometry }`. The service answers each mistake with an unrelated message
+("empty geometry"), so the tool refuses them before sending.
+
 ## Area and perimeter: `<geometry>/areasAndLengths`
 
 | Parameter | Meaning |

@@ -264,6 +264,19 @@ test('documented operations refuse unknown parameter names before sending', asyn
     await request(cfg, { url, params: { [name]: 'x' } });
     await assert.rejects(request(cfg, { url, params: { [`${name}x`]: 'x' } }), /is not a parameter of/, url);
   }
+  // Value shapes the geometry service refuses with a misleading message are refused here instead.
+  const geometry = `${portalUrl}/rest/services/Utilities/Geometry/GeometryServer`;
+  const sent = portal.seen.length;
+  await assert.rejects(request(cfg, { url: `${geometry}/buffer`, params: { unit: 'esriSRUnit_Meter' } }), /"unit" takes a unit code, such as 9001.*not sent/);
+  await assert.rejects(request(cfg, { url: `${geometry}/areasAndLengths`, params: { areaUnit: 'esriSquareMeters' } }), /"areaUnit" takes an object/);
+  await assert.rejects(request(cfg, { url: `${geometry}/intersect`, params: { geometry: { rings: [] } } }), /"geometry" takes \{ geometryType, geometry \}/);
+  await assert.rejects(request(cfg, { url: `${geometry}/distance`, params: { geometry2: '{"x":1,"y":2}' } }), /"geometry2" takes/, 'JSON strings are read too');
+  assert.equal(portal.seen.length, sent, 'refused geometry requests are never sent');
+  await request(cfg, { url: `${geometry}/buffer`, params: { unit: 9001 } });
+  await request(cfg, { url: `${geometry}/lengths`, params: { lengthUnit: '9036' } });
+  await request(cfg, { url: `${geometry}/areasAndLengths`, params: { areaUnit: { areaUnit: 'esriSquareMeters' } } });
+  await request(cfg, { url: `${geometry}/difference`, params: { geometry: { geometryType: 'esriGeometryPolygon', geometry: { rings: [] } } } });
+  assert.equal(portal.seen.length, sent + 4, 'codes and wrapped operands pass');
 });
 
 test('GP task runs are checked against the task inputs, layer query failures name bad fields', async () => {

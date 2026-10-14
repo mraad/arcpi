@@ -20,6 +20,12 @@ hallucinated REST calls. Scripts stay JavaScript (QuickJS); repo code TypeScript
       (gp median 150k → 93k tokens, 7 → 5 turns). The contract refused nothing live: replaying the
       baseline calls, it would have refused 6 (`inSR` on image identify, one run). The tasks are too
       easy to show a correctness change; harder tasks are needed for that. Docker smoke passed (44 tests, extension, settings, mcp.json)
+- [x] GP and geometry gap review. Geometry: three wire traps (unit codes, `areaUnit` object, wrapped
+      operand) were already in the reference, but the service
+      answers them with misleading errors ("empty geometry"), checked live, so the tool now refuses them
+      (`geometryValueProblem`). GP: added discovery (16 GPServer `helperServices` on the org, portal search),
+      the 120 s request cap for long `execute` runs, and `Promise.allSettled` over several outputs.
+      Not taken: `findTransformations` (no catalog entry yet)
 - [ ] 8. Gated: utility network, linear referencing, knowledge graph (needs a verification instance)
 - [ ] 9. Later: OpenShell isolation (`docs/openshell.md`)
 

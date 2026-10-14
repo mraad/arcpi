@@ -47,8 +47,9 @@ return found.results.map((item) => ({ id: item.id, title: item.title, url: item.
   services, portal search, GeoEnrichment, publishing): an undocumented name fails with
   `"x" is not a parameter of ...` and a suggestion, because ArcGIS would
   silently ignore it. GP task runs are checked against the task's own inputs.
-  A layer query that fails names the fields the layer does not have. Fix the
-  name the error gives; letter case does not matter.
+  A layer query that fails names the fields the layer does not have. Geometry
+  operations refuse unit names where a code goes, a bare `areaUnit`, and an
+  unwrapped operand. Fix what the error names; letter case does not matter.
 - `note` is set when the request went out **without** the token: the host is
   not one of the portal's, or it is a public utility service that refuses
   tokens. Public data still answers; private data then fails with 499/403.

@@ -426,8 +426,11 @@ to the model):
   operations, portal search, GeoEnrichment, the publishing calls; lists from Esri's REST docs plus
   names ArcGIS Online was seen to honor, such as `having`). A GP `execute` or
   `submitJob` is checked against the task's own inputs, read once per task. A
-  failed layer query reads the layer and names the fields it lacks. Other URLs
-  pass through unchecked.
+  failed layer query reads the layer and names the fields it lacks. Geometry
+  operations also refuse three value shapes the service rejects with a
+  misleading message ("empty geometry", "polygon cut"): a unit name where it
+  takes a code (`unit: 9001`), a bare `areaUnit` string, and an unwrapped
+  overlay operand. Other URLs pass through unchecked.
 - `tools.arcgis_status()` reports the portal, user and token expiry.
 
 The full response is carried only in `structuredContent`. The extension's text
@@ -868,7 +871,7 @@ and redaction, named and unnamed layer cleanup, artifact confinement and byte
 ranges, and Host/Origin and bearer checks. All tests use temporary fixtures;
 none calls an LLM or a live portal. `test/arcgis.test.ts` also covers the
 request contract (unknown names refused before sending, GP inputs, field
-diagnosis), compiles every `js` block of the skills as JavaScript, and checks
+diagnosis, geometry value shapes), compiles every `js` block of the skills as JavaScript, and checks
 each reference's parameter table against `catalog.ts`.
 
 ### Live eval

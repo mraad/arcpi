@@ -47,6 +47,7 @@ last `refresh_error`.
 | 400 "Invalid or missing input parameters." | A required parameter is missing or misnamed | Compare with the reference |
 | "\"x\" is not a parameter of ...; did you mean ...?" (request not sent) | A name the operation does not document: misspelt or invented | Use the suggested name; the reference lists the parameters. Do not drop the check by switching endpoints |
 | "\"x\" is not an input of task ..." / "is missing required input" (request not sent) | GP input names come from the task, not from memory | Read `<gp>/<task>` and use its `parameters[].name` (`references/geoprocessing.md`) |
+| "\"unit\" takes a unit code ..." / "\"areaUnit\" takes an object" / "takes { geometryType, geometry }" (request not sent) | A value shape the geometry service would reject with a misleading message ("empty geometry", "polygon cut") | Use the shape the error gives (`references/geometry.md`) |
 | "Not fields of this layer: ..." after a query error | A field name in `outFields`, `orderByFields`, `groupByFieldsForStatistics` or `outStatistics` | Use the names the message lists; `where` is not checked |
 | "The response ... is application/pdf ...: pass save_to" | Binary response | Add `save_to: "artifacts/<name>"` |
 | "Do not pass a token" / "Token endpoints are not callable" | A `token` parameter or an OAuth endpoint | Remove it; authentication is automatic |

@@ -70,7 +70,7 @@ function runPi(task: Task, dir: string, model: string, thinking: string): Promis
   });
 }
 
-const REJECTION = /is not a parameter of|is not an input of|is missing required input|Not fields of this layer/;
+const REJECTION = /is not a parameter of|is not an input of|is missing required input|Not fields of this layer| takes (a unit code|an object|\{ geometryType)/;
 
 export function scoreSession(lines: any[], task: Task, truth: Answer) {
   const messages = lines.filter((line) => line.type === "message").map((line) => line.message);

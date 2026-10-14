@@ -8,6 +8,13 @@ through search may not, so say which kind you are calling.
 
 ## Discover
 
+Find GP services in two places. The portal's `helperServices` (from
+`/sharing/rest/portals/self`) names Esri's own: every entry whose `url` ends in
+`/GPServer`, such as `analysis`, `elevation`, `hydrology`, `rasterAnalytics`,
+`asyncRoute`; most bill credits. Portal search with
+`q: 'type:"Geoprocessing Service"'` finds the services the organization and
+others shared (`references/portal.md`), each item's `url` a GPServer.
+
 | Endpoint | Gives |
 |---|---|
 | `<gp>` | `tasks[]` (task names) and `executionType`: `esriExecutionTypeSynchronous` (run with `execute`) or `esriExecutionTypeAsynchronous` (run with `submitJob`) |
@@ -56,7 +63,9 @@ shape.
 
 ## Run a synchronous task: `<gp>/<task>/execute`
 
-Pass the inputs under their task names. The response is `results[]`, one per
+Pass the inputs under their task names. Each request stops after 120 seconds,
+so a synchronous task that runs longer fails with a timeout; say so rather
+than retrying. The response is `results[]`, one per
 output: `{ paramName, dataType, value }`. A `GPRecordSet` or
 `GPFeatureRecordSetLayer` value has `features[]` (lines and polygons as
 references); a raster or file output is `{ url }` or a `mapImage`.
@@ -76,7 +85,9 @@ until `jobStatus` is final: `esriJobSucceeded`, `esriJobFailed`,
 `esriJobTimedOut` or `esriJobCancelled`. Earlier states are `esriJobNew`,
 `esriJobSubmitted`, `esriJobWaiting`, `esriJobExecuting`, `esriJobCancelling`.
 On success, `results` maps each output name to `{ paramUrl }`; read
-`<gp>/<task>/jobs/<jobId>/<paramUrl>` for `{ paramName, dataType, value }`.
+`<gp>/<task>/jobs/<jobId>/<paramUrl>` for `{ paramName, dataType, value }`;
+with several outputs, read them with `Promise.allSettled` so one large or
+failed output does not lose the others.
 `messages[]` explains a failure: report them.
 
 Scripts have no timers, so each poll follows the previous answer at once. Poll

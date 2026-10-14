@@ -204,18 +204,52 @@ export function gpInputProblem(task: { name?: string; parameters?: any[] }, para
   ].join(" ") + ` Its inputs: ${names.join(", ") || "none"}. The request was not sent.`;
 }
 
+/** A parameter value as the script gave it: an object, or a JSON string of one. */
+const parse = (value: unknown) => {
+  if (typeof value !== "string") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+};
+
+const GEOMETRY_OP = /\/GeometryServer\/(\w+)$/i;
+const LINEAR_UNITS = ["unit", "lengthunit", "distanceunit", "deviationunit"];
+/** Operands that must be wrapped as `{ geometryType, geometry }`, by operation. */
+const WRAPPED: Record<string, string[]> = { intersect: ["geometry"], difference: ["geometry"], distance: ["geometry1", "geometry2"] };
+const isObject = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
+
+/**
+ * Value shapes the geometry service refuses with a misleading message ("empty geometry", "polygon cut"),
+ * checked live 2026-10-14 against ArcGIS Online: unit names instead of codes, a bare areaUnit, a bare operand.
+ */
+export function geometryValueProblem(url: URL, params: Record<string, unknown>): string | undefined {
+  const match = GEOMETRY_OP.exec(url.pathname);
+  if (!match) return undefined;
+  const wrapped = WRAPPED[match[1].toLowerCase()] ?? [];
+  const problems: string[] = [];
+  for (const [name, raw] of Object.entries(params)) {
+    const value = parse(raw);
+    const key = name.toLowerCase();
+    if (value === undefined || value === null) continue;
+    if (LINEAR_UNITS.includes(key) && !/^\d+$/.test(String(value))) {
+      problems.push(`"${name}" takes a unit code, such as 9001 (meters), 9036 (kilometers) or 9093 (miles), not ${JSON.stringify(value)}.`);
+    } else if (key === "areaunit" && !(isObject(value) && typeof value.areaUnit === "string")) {
+      problems.push(`"${name}" takes an object, such as { areaUnit: "esriSquareKilometers" }, not ${JSON.stringify(value)}.`);
+    } else if (wrapped.includes(key) && !(isObject(value) && "geometryType" in value && "geometry" in value)) {
+      problems.push(`"${name}" takes { geometryType, geometry }, with the shape or its reference under geometry.`);
+    }
+  }
+  if (!problems.length) return undefined;
+  return `${problems.join(" ")} The geometry service answers these with a misleading error, so the request was not sent.`
+    + ` Parameters: ${operationFor(url)?.docs ?? `${ENTERPRISE}/geometry-service/`}`;
+}
+
 /** Field names a layer query refers to that the layer does not have, as a sentence, or undefined. */
 export function fieldProblem(layer: { fields?: { name: string }[] }, params: Record<string, unknown>): string | undefined {
   const fields = (layer.fields ?? []).map((field) => field.name);
   if (!fields.length) return undefined;
-  const parse = (value: unknown) => {
-    if (typeof value !== "string") return value;
-    try {
-      return JSON.parse(value);
-    } catch {
-      return value;
-    }
-  };
   const list = (value: unknown) => (typeof value === "string" ? value.split(",") : []).map((name) => name.trim().split(/\s+/)[0]).filter(Boolean);
   const statistics = parse(params.outStatistics);
   const stats = Array.isArray(statistics) ? statistics : [];
