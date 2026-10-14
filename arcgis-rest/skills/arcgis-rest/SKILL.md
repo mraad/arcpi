@@ -239,6 +239,7 @@ return { count };
 Fan out, keep the successes, report the failures:
 
 ```js
+const rest = async (url, params, extra) => (await tools.arcgis_request({ url, params, ...extra })).data;
 const layers = [0, 1, 2].map((id) => `https://.../FeatureServer/${id}`);
 const settled = await Promise.allSettled(layers.map((layer) => rest(`${layer}/query`, { where: "1=1", returnCountOnly: true })));
 return settled.map((result, i) => ({ layer: layers[i], count: result.value?.count, error: result.reason?.message }));
