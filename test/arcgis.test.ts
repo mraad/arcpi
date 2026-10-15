@@ -130,6 +130,8 @@ const serve = (name: string, host: string) => new Promise<string>((listening) =>
       { name: 'Output', direction: 'esriGPParameterDirectionOutput', parameterType: 'esriGPParameterTypeRequired', defaultValue: null },
     ] });
     if (path === '/rest/services/G/GPServer/T/execute') return json({ results: [] });
+    if (path === '/rest/services/G/GPServer') return json({ tasks: ['T', 'Windfarm analysis'] });
+    if (path.startsWith('/rest/services/G/GPServer/') && !path.startsWith('/rest/services/G/GPServer/T/')) return json({ error: { code: 400, message: 'Invalid URL', details: [] } });
     // A public utility service: it answers anonymous callers and rejects every token.
     if (path === '/rest/public') return json(token ? { error: { code: 498, message: 'Invalid Token' } } : { areas: [1] });
     // Refuses our tokens but is not public either.
@@ -306,6 +308,26 @@ test('GP task runs are checked against the task inputs, layer query failures nam
   /ArcGIS error 400 .*Not fields of this layer: "POPULATON" \(did you mean "POPULATION"\?\)\. Fields: NAME, POPULATION\./);
   assert.deepEqual(portal.seen.map((call) => call.path), ['/rest/services/L/FeatureServer/0/query', '/rest/services/L/FeatureServer/0'],
     'the layer is read only after the query failed');
+  // A guessed task name: ArcGIS says only "Invalid URL", so the service's tasks are named.
+  portal.seen.length = 0;
+  await assert.rejects(request(cfg, { url: '/rest/services/G/GPServer/windfarm/execute', params: { ROAD: 'x' } }),
+    /ArcGIS error 400 .*Invalid URL Not a task of this service: "windfarm"\. Its tasks: "T", "Windfarm analysis"/);
+  assert.deepEqual(portal.seen.map((call) => call.path).slice(-2), ['/rest/services/G/GPServer/windfarm/execute', '/rest/services/G/GPServer']);
+  await assert.rejects(request(cfg, { url: '/rest/services/G/GPServer/Windfarm%20analysis' }), (error: Error) => !/Not a task/.test(error.message),
+    'a task the service has gets no diagnosis');
+});
+
+test('the layer description refuses query parameters', async () => {
+  const cfg = project();
+  signedIn(cfg);
+  const layer = '/rest/services/L/FeatureServer/0';
+  await assert.rejects(request(cfg, { url: layer, params: { where: "STATE_NAME = 'Colorado'" } }),
+    /"where" is not a parameter of the layer description\. Query parameters go to <layer>\/query\..*not sent/);
+  await assert.rejects(request(cfg, { url: `${portalUrl}/rest/services/M/MapServer/3?outFields=*` }), /"outFields" is not a parameter/);
+  assert.equal(portal.seen.length, 0, 'refused requests are never sent');
+  await request(cfg, { url: layer, params: { returnDomainNames: true } });
+  await request(cfg, { url: `${layer}/query`, params: { where: '1=1' } });
+  assert.equal(portal.seen.length, 2);
 });
 
 test('internal OAuth and trust requests never forward credentials through redirects', async () => {

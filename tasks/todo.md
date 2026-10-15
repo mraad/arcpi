@@ -1,3 +1,18 @@
+# Local model: LFM2.5-24B-A2B (2026-10-15, branch feat/local-lfm2.5)
+
+Goal: run arcpi on this Mac with LiquidAI LFM2.5-24B-A2B (24B MoE, ~2.4B active, 128K
+context, released 2026-10-09), find the gaps it exposes, compare with Claude and GPT-5.6 Sol.
+
+- [x] 1. Branch, version 0.3.4 → 0.4.0 (`plugin.json`, arcgis-rest `SKILL.md`)
+- [x] 2. GGUF Q8_0 in `~/models`, llama.cpp router (`-np 1`) on 127.0.0.1:8091, pi's
+      built-in `llama.cpp` provider (credential in `~/.pi/agent/auth.json`, catalog primed via RPC)
+- [x] 3. Eval `--minutes` cap; `lfm2.5` run: 1/8 (590 of 655 scripts failed, mostly `require`)
+- [x] 4. Gap fixes: QuickJS `tools.read` line in APPEND_SYSTEM; the layer description refuses
+      query parameters; a failed GP task URL names the service's tasks. 45 tests pass
+- [x] 5. Re-run: `lfm2.5-fixes` (8 tasks) and `sol` (Azure GPT-5.6 Sol); report vs `contract`
+- [x] 6. Docs: `docs/local-model.md`, README, AGENTS.md
+- [x] 7. `bash -n arcpi`, `node --test test/` (45 pass), `git diff --check`; commit when asked
+
 # Request contract and code-mode skills (2026-10-14, branch feat/request-contract)
 
 Plan: ~/.claude/plans/inspect-the-added-arcpi-hidden-breeze.md. Goal: fewer

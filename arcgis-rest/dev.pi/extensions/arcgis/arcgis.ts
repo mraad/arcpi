@@ -8,7 +8,7 @@ import { createServer } from "node:http";
 import type { Server } from "node:http";
 import { basename, dirname, join, resolve } from "node:path";
 import { setTimeout as pause } from "node:timers/promises";
-import { fieldProblem, geometryValueProblem, gpInputProblem, isGpRun, isLayerQuery, parameterProblem } from "./catalog.ts";
+import { fieldProblem, geometryValueProblem, gpInputProblem, gpTaskOf, gpTaskProblem, isGpRun, isLayerQuery, parameterProblem } from "./catalog.ts";
 import { artifactPath, artifactsFolder, externalize, resolveReferences } from "./geometry.ts";
 import type { GeometryFile } from "./geometry.ts";
 
@@ -664,6 +664,13 @@ export async function request(cfg: Config, args: RequestArgs, signal?: AbortSign
       const layer = await request(cfg, { url: `${url.origin}${url.pathname.replace(/\/query$/i, "")}` }, signal).then((reply) => reply.data, () => undefined);
       const fieldsWrong = layer && fieldProblem(layer, args.params ?? {});
       if (fieldsWrong) diagnosis = ` ${fieldsWrong}`;
+    }
+    // A guessed task name gets "Invalid URL": name the tasks the service has.
+    const gp = code === 400 ? gpTaskOf(url) : undefined;
+    if (gp) {
+      const service = await request(cfg, { url: gp.service }, signal).then((reply) => reply.data, () => undefined);
+      const taskWrong = service && gpTaskProblem(service, gp.task);
+      if (taskWrong) diagnosis = ` ${taskWrong}`;
     }
     throw new Error(`ArcGIS error ${code} from ${where}: ${message ?? "no message"}${more ? ` (${more})` : ""}${diagnosis}${advice(code)}`);
   }

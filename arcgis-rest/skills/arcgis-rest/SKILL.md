@@ -2,7 +2,7 @@
 name: arcgis-rest
 description: Call ArcGIS REST endpoints directly from a codemode script as the signed-in portal user - search the portal and read items, inspect and query feature layers (attribute, spatial, statistics, paging, GeoJSON), geocode one or many addresses, reverse geocode, autocomplete, solve routes and driving directions, build drive-time areas, closest facility and OD cost matrices, snap GPS points to roads, find places, get elevation, and pull demographics with GeoEnrichment, run geoprocessing tasks and jobs, read image services (pixel values, land cover classes, raster statistics, image export), and create, share, update or delete hosted feature layers. Use for any ArcGIS data or analysis task - find a layer, look up an item, count or list features, features within or near something, geocode, directions from A to B - even when the user does not say REST.
 metadata:
-  version: "0.3.4"
+  version: "0.4.0"
 ---
 
 # ArcGIS REST from codemode

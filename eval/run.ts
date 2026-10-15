@@ -2,7 +2,7 @@
 // against a truth computed without a model, and reads tokens, turns and tool calls from the
 // pi session file. Real portal calls and model calls, so it is run by hand, not by `node --test`.
 //
-//   node eval/run.ts run <label> [--reps N] [--only a,b] [--no-credits] [--model M] [--thinking T]
+//   node eval/run.ts run <label> [--reps N] [--only a,b] [--no-credits] [--model M] [--thinking T] [--minutes N]
 //   node eval/run.ts report <label> [<label> ...]     # writes eval/RESULTS.md
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
@@ -52,7 +52,7 @@ const prompt = (task: Task) =>
   `${task.prompt}\n\nEnd your reply with exactly one line \`ANSWER: <JSON object>\` with the keys ${task.keys.join(", ")} `
   + "and plain JSON values (numbers as numbers).";
 
-function runPi(task: Task, dir: string, model: string, thinking: string): Promise<{ exit: number | null; seconds: number }> {
+function runPi(task: Task, dir: string, model: string, thinking: string, minutes: number): Promise<{ exit: number | null; seconds: number }> {
   const started = Date.now();
   return new Promise((done) => {
     // stdin closed: non-interactive pi waits on an open stdin (tasks/lessons.md).
@@ -62,7 +62,8 @@ function runPi(task: Task, dir: string, model: string, thinking: string): Promis
     const out: Buffer[] = [], err: Buffer[] = [];
     child.stdout.on("data", (chunk) => out.push(chunk));
     child.stderr.on("data", (chunk) => err.push(chunk));
-    const timer = setTimeout(() => child.kill("SIGTERM"), 15 * 60_000);
+    // A model that repeats a failing call never ends on its own (pi has no turn cap).
+    const timer = setTimeout(() => child.kill("SIGTERM"), minutes * 60_000);
     child.on("close", (exit) => {
       clearTimeout(timer);
       writeFileSync(join(dir, "stdout.txt"), Buffer.concat(out));
@@ -72,7 +73,7 @@ function runPi(task: Task, dir: string, model: string, thinking: string): Promis
   });
 }
 
-const REJECTION = /is not a parameter of|is not an input of|is missing required input|Not fields of this layer| takes (a unit code|an object|\{ geometryType)/;
+const REJECTION = /is not a parameter of|is not an input of|is missing required input|Not fields of this layer|Not a task of this service| takes (a unit code|an object|\{ geometryType)/;
 
 export function scoreSession(lines: any[], task: Task, truth: Answer) {
   const messages = lines.filter((line) => line.type === "message").map((line) => line.message);
@@ -119,7 +120,7 @@ const sessionLines = (dir: string) => {
   return file ? readFileSync(join(sessions, file), "utf8").trim().split("\n").map((text) => JSON.parse(text)) : [];
 };
 
-async function run(label: string, options: { reps: number; only?: string; credits: boolean; model: string; thinking: string; refresh: boolean }) {
+async function run(label: string, options: { reps: number; only?: string; credits: boolean; model: string; thinking: string; minutes: number; refresh: boolean }) {
   const selected = tasks.filter((task) => (!options.only || options.only.split(",").includes(task.id)) && (options.credits || !task.credits));
   const truth = await truths(options.refresh, selected);
   const resultsFile = join(runsDir, label, "results.json");
@@ -129,12 +130,19 @@ async function run(label: string, options: { reps: number; only?: string; credit
       if (scores.some((score) => score.task === task.id && score.rep === rep)) continue;
       const dir = join(runsDir, label, `${task.id}-${rep}`);
       mkdirSync(dir, { recursive: true });
-      const { exit, seconds } = await runPi(task, dir, options.model, options.thinking);
-      const score: Score = { task: task.id, rep, exit, seconds, ...scoreSession(sessionLines(dir), task, truth[task.id]) };
+      const { exit, seconds } = await runPi(task, dir, options.model, options.thinking, options.minutes);
+      const lines = sessionLines(dir);
+      const score: Score = { task: task.id, rep, exit, seconds, ...scoreSession(lines, task, truth[task.id]) };
       if (score.tokens === 0) {
         // No model reply (provider or launcher failure): not a result, so it is not recorded and reruns retry it.
         throw new Error(`${label} ${task.id}#${rep}: pi produced no model reply (exit ${exit}): `
           + readFileSync(join(dir, "stderr.txt"), "utf8").trim().split("\n").at(-1));
+      }
+      // A provider error mid-session is not the model's answer either: skipped, and a rerun retries it.
+      const last = lines.filter((line) => line.type === "message" && line.message.role === "assistant").at(-1)?.message;
+      if (last?.stopReason === "error") {
+        console.log(`${label} ${task.id}#${rep}: provider error, not recorded: ${String(last.errorMessage).slice(0, 200)}`);
+        continue;
       }
       scores.push(score);
       writeFileSync(resultsFile, JSON.stringify(scores, null, 2));
@@ -178,14 +186,14 @@ if (import.meta.main) {
     allowPositionals: true,
     options: {
       reps: { type: "string", default: "1" }, only: { type: "string" }, "no-credits": { type: "boolean", default: false },
-      model: { type: "string", default: "amazon-bedrock/us.anthropic.claude-sonnet-4-6" }, thinking: { type: "string", default: "medium" },
+      model: { type: "string", default: "amazon-bedrock/us.anthropic.claude-sonnet-4-6" }, thinking: { type: "string", default: "medium" }, minutes: { type: "string", default: "15" },
       "refresh-truth": { type: "boolean", default: false },
     },
   });
   const [command, ...labels] = positionals;
   if (command === "run" && labels.length === 1) {
     await run(labels[0], {
-      reps: Number(values.reps), only: values.only, credits: !values["no-credits"], model: values.model!, thinking: values.thinking!, refresh: values["refresh-truth"]!,
+      reps: Number(values.reps), only: values.only, credits: !values["no-credits"], model: values.model!, thinking: values.thinking!, minutes: Number(values.minutes), refresh: values["refresh-truth"]!,
     });
   } else if (command === "rescore" && labels.length === 1) {
     // Score stored sessions again after a checker fix; runs are not repeated.

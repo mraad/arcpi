@@ -42,8 +42,9 @@ native `ls`, `find`, `grep` and disables `bash`, `powershell`.
     Esri JSON shapes.
   - `dev.pi/extensions/arcgis/catalog.ts`: the request contract. Documented
     parameter names per operation (matched by URL suffix), GP input checks
-    against a task's description, field diagnosis for failed layer queries, and
-    geometry value shapes (unit codes, `areaUnit`, wrapped operands).
+    against a task's description, field diagnosis for failed layer queries, the
+    service's task names for a failed GP task URL, and geometry value shapes
+    (unit codes, `areaUnit`, wrapped operands).
   - `dev.pi/extensions/arcgis/mcp.ts`: reads `mcp.json` for pi (pi reads neither
     it nor `plugin.json`); skips and reports a version mismatch or a transport
     other than `streamable-http`.
@@ -71,6 +72,8 @@ native `ls`, `find`, `grep` and disables `bash`, `powershell`.
   excludes everything but the `Dockerfile`: the checkout is mounted, never
   copied, so credentials and artifacts stay out of the build context.
 - `README.md`: setup, authentication, skills, operations.
+- `docs/local-model.md`: arcpi with a local model (LFM2.5-24B-A2B through pi's
+  llama.cpp provider): setup, eval results against hosted models, gaps found.
 - `docs/openshell.md`: recommendation for running arcpi in an OpenShell sandbox
   (unverified; needs OpenShell 0.1.x).
 - `docs/overview/`: plain-language introduction page (`index.html` + `images/`,
@@ -218,7 +221,8 @@ relative to the invoking `$PWD`, so it must stay above the `cd -- "$project_dir"
   comment); the reference's parameter table; the drift test's placeholders if
   the reference uses a new `<endpoint>`.
 - Changing a contract error message ("is not a parameter of", "is not an input
-  of", "Not fields of this layer", "takes ...") → `references/errors.md`,
+  of", "Not fields of this layer", "Not a task of this service", "takes ...") →
+  `references/errors.md`,
   `.pi/APPEND_SYSTEM.md`, and the `REJECTION` pattern in `eval/run.ts`.
 - Changing token, trust, or session behavior → `test/arcgis.test.ts`, README
   "Authentication and token refresh", and "Token rules" above.

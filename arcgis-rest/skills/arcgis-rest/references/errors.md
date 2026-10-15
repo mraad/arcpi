@@ -45,10 +45,11 @@ last `refresh_error`.
 | 400 "Unable to complete operation." | The service could not parse an input (routing locations, travel mode, batch addresses) | See the reference for that endpoint |
 | 400 "Invalid URL" / 404 | Wrong path or layer ID; an operation on the wrong service | Read the parent URL first: a service lists its layers and operations |
 | 400 "Invalid or missing input parameters." | A required parameter is missing or misnamed | Compare with the reference |
-| "\"x\" is not a parameter of ...; did you mean ...?" (request not sent) | A name the operation does not document: misspelt or invented | Use the suggested name; the reference lists the parameters. Do not drop the check by switching endpoints |
+| "\"x\" is not a parameter of ...; did you mean ...?" (request not sent) | A name the operation does not document: misspelt or invented | Use the suggested name; the reference lists the parameters. Do not drop the check by switching endpoints. On "the layer description", the parameters belong on `<layer>/query` |
 | "\"x\" is not an input of task ..." / "is missing required input" (request not sent) | GP input names come from the task, not from memory | Read `<gp>/<task>` and use its `parameters[].name` (`references/geoprocessing.md`) |
 | "\"unit\" takes a unit code ..." / "\"areaUnit\" takes an object" / "takes { geometryType, geometry }" (request not sent) | A value shape the geometry service would reject with a misleading message ("empty geometry", "polygon cut") | Use the shape the error gives (`references/geometry.md`) |
 | "Not fields of this layer: ..." after a query error | A field name in `outFields`, `orderByFields`, `groupByFieldsForStatistics` or `outStatistics` | Use the names the message lists; `where` is not checked |
+| "Not a task of this service: ..." after a GP error | A guessed GP task name ("Invalid URL") | Use a name the message lists, with spaces as `%20` (`references/geoprocessing.md`) |
 | "The response ... is application/pdf ...: pass save_to" | Binary response | Add `save_to: "artifacts/<name>"` |
 | "Do not pass a token" / "Token endpoints are not callable" | A `token` parameter or an OAuth endpoint | Remove it; authentication is automatic |
 | HTTP 429 or 503 | Rate limit or busy service | Wait and retry once; reduce parallel calls |
