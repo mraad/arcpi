@@ -7,10 +7,12 @@ export interface Operation {
   name: string;
   docs: string;
   params: string[];
+  /** Appended to a refusal, where the parameters probably belong to another endpoint. */
+  note?: string;
 }
 
 const ENTERPRISE = "https://developers.arcgis.com/rest/services-reference/enterprise";
-const op = (name: string, docs: string, params: string[]): Operation => ({ name, docs, params });
+const op = (name: string, docs: string, params: string[], note?: string): Operation => ({ name, docs, params, note });
 
 const geometryOps: Record<string, [string, string[]]> = {
   project: ["project", ["geometries", "inSR", "outSR", "transformation", "transformForward", "vertical"]],
@@ -128,6 +130,10 @@ const OPERATIONS: [RegExp, Operation][] = [
   [/\/Geoenrichment\/CreateReport$/i, op("GeoEnrichment report", "https://developers.arcgis.com/rest/geoenrichment/create-report/", [
     "studyAreas", "report", "format", "reportFields", "studyAreasOptions", "returnType", "useData", "inSR",
   ])],
+  // The layer description itself (same names on the map service Layer / Table page): a `where` sent
+  // here is ignored and the description comes back as if it were the answer.
+  [/\/(FeatureServer|MapServer)\/\d+$/i, op("the layer description", `${ENTERPRISE}/layer-feature-service/`,
+    ["returnUpdates", "returnDomainNames"], "Query parameters go to <layer>/query.")],
 ];
 
 /** Accepted by every operation; `token` passes here so that request() refuses it with its own message. */
@@ -182,7 +188,24 @@ export function parameterProblem(url: URL, names: string[]): string | undefined 
   const bad = unknown(names, known);
   if (!bad.length) return undefined;
   return bad.map((name) => `"${name}" is not a parameter of ${operation.name}.${hint(name, known)}`).join(" ")
-    + ` ArcGIS ignores unknown parameters, so the request was not sent. Parameters: ${operation.docs}`;
+    + `${operation.note ? ` ${operation.note}` : ""} ArcGIS ignores unknown parameters, so the request was not sent. Parameters: ${operation.docs}`;
+}
+
+const GP_TASK = /^(.*\/GPServer)\/([^/]+)/i;
+
+/** The GP service URL and task name of a request under a task, or undefined. */
+export function gpTaskOf(url: URL): { service: string; task: string } | undefined {
+  const match = GP_TASK.exec(url.pathname);
+  return match ? { service: `${url.origin}${match[1]}`, task: decodeURIComponent(match[2]) } : undefined;
+}
+
+/** A task name the GP service does not have, from the service's own description (`<gp>?f=json`). */
+export function gpTaskProblem(service: { tasks?: unknown }, task: string): string | undefined {
+  if (!Array.isArray(service.tasks)) return undefined;
+  const tasks = service.tasks.map(String);
+  if (tasks.some((name) => name.toLowerCase() === task.toLowerCase())) return undefined;
+  return `Not a task of this service: "${task}". Its tasks: ${tasks.map((name) => `"${name}"`).join(", ") || "none"} `
+    + "(a space in a task name is %20 in the URL).";
 }
 
 /** Problems with the inputs of a GP task run, from the task's own description (`<task>?f=json`). */

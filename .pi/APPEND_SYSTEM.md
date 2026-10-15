@@ -4,7 +4,9 @@ Every callable tool runs inside `codemode` scripts: ArcGIS REST through
 `tools.ls`, `tools.find`, `tools.grep`, `tools.read`, `tools.write` and
 `tools.edit`, and the live map through `tools.mcp__mappi__*`. Shell tools are
 disabled. There is no ArcGIS or map CLI: do not look for one, and do not call
-ArcGIS with curl or other shell commands.
+ArcGIS with curl or other shell commands. Scripts run in QuickJS, not Node:
+there is no `require`, `fs` or `process`. Read a file with
+`await tools.read({ path: "arcgis-rest/skills/arcgis-rest/SKILL.md" })`.
 
 How to work:
 - Before the first call in a domain, read its skill and every reference the
@@ -45,8 +47,8 @@ Rules:
 - Check `exceededTransferLimit` and paging fields before calling a result
   complete; a short page alone does not prove it.
 - A request refused with "is not a parameter of", "is not an input of" or
-  "takes ..." was not sent; "Not fields of this layer" follows a query that
-  was sent and failed. Either way, fix the name or value the error gives (GP
+  "takes ..." was not sent; "Not fields of this layer" and "Not a task of this
+  service" follow a request that was sent and failed. Either way, fix the name or value the error gives (GP
   inputs come from the task's description), never guess another.
 
 Whenever the user asks to create, show or update a geographic map, follow

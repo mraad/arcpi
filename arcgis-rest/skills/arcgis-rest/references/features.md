@@ -11,7 +11,9 @@ layers of map services (`.../MapServer/<id>/query`). Queries cost no credits.
 - `<service>/<layerId>`: `name`, `type`, `geometryType`, `objectIdField`,
   `fields[]` (`name`, `type`, `alias`, `domain`), `extent`, `maxRecordCount`,
   `capabilities`, `advancedQueryCapabilities` (`supportsPagination`,
-  `supportsStatistics`, `supportsDistinct`), `drawingInfo`.
+  `supportsStatistics`, `supportsDistinct`), `drawingInfo`. It takes only `f`,
+  `returnDomainNames` and `returnUpdates`: a `where` sent here is refused, as
+  it belongs to `<layer>/query`.
 
 Read the layer once before writing a `where` clause: field names are exact,
 and coded-value domains (`fields[].domain.codedValues`) mean the stored value

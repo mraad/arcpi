@@ -236,6 +236,11 @@ launcher (they need Node, not pi); everything else is forwarded to pi. Inside a
 session, `/arcgis-login` and `/arcgis-logout` do the same without leaving it.
 The sign-in commands require both variables; ordinary pi sessions do not.
 
+Any pi model works, including a local one: `./arcpi --model llama.cpp/<model>`
+with a llama.cpp router on this machine. `docs/local-model.md` covers the
+setup (LiquidAI LFM2.5-24B-A2B on an M4 Max) and how it scored against hosted
+models; small local models are not yet reliable with codemode.
+
 ## Authentication and token refresh
 
 `./arcpi login` runs the OAuth 2.0 authorization code flow with PKCE against
@@ -894,3 +899,8 @@ correct; cost fell from $1.65 to $1.36 and failed scripts from 4 to 0, mostly on
 the geoprocessing task. Replaying the baseline calls, the contract would have
 refused one invented parameter (`inSR` on image `identify`). These tasks are
 too easy to show a correctness difference.
+
+`--minutes N` (default 15) stops a run that never ends; a session that ends in a
+provider error is not recorded, so a rerun retries it. The 2026-10-15 runs
+(`sol` = GPT-5.6 Sol, 8/8; `lfm2.5` = LiquidAI LFM2.5-24B-A2B on this Mac, 1/8
+before and after the gap fixes it prompted) are compared in `docs/local-model.md`.
