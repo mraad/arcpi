@@ -191,9 +191,14 @@ if (import.meta.main) {
     },
   });
   const [command, ...labels] = positionals;
-  if (command === "run" && labels.length === 1) {
+  const minutes = Number(values.minutes);
+  if (command === "run" && labels.length === 1 && !(minutes > 0 && Number.isFinite(minutes))) {
+    // NaN or 0 would make the timer fire at once and kill every run.
+    console.error(`--minutes must be a number above 0, not ${values.minutes}`);
+    process.exitCode = 2;
+  } else if (command === "run" && labels.length === 1) {
     await run(labels[0], {
-      reps: Number(values.reps), only: values.only, credits: !values["no-credits"], model: values.model!, thinking: values.thinking!, minutes: Number(values.minutes), refresh: values["refresh-truth"]!,
+      reps: Number(values.reps), only: values.only, credits: !values["no-credits"], model: values.model!, thinking: values.thinking!, minutes, refresh: values["refresh-truth"]!,
     });
   } else if (command === "rescore" && labels.length === 1) {
     // Score stored sessions again after a checker fix; runs are not repeated.
